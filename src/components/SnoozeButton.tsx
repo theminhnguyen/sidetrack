@@ -14,14 +14,16 @@ function SnoozePanel({ taskId, weeks, close }: { taskId: string; weeks: number; 
 
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <p className="text-xs text-white/50">Why is this moving by {weeks === 1 ? '1 week' : `${weeks} weeks`}?</p>
+      <p className="text-xs text-black/50 dark:text-white/50">Why is this moving by {weeks === 1 ? '1 week' : `${weeks} weeks`}?</p>
       <div className="flex flex-wrap gap-1.5">
         {QUICK_REASONS.map((r) => (
           <button
             key={r}
             onClick={() => setReason(r)}
             className={`rounded-full border px-2 py-1 text-xs ${
-              reason === r ? 'border-white/40 bg-white/10' : 'border-white/15 hover:bg-white/5'
+              reason === r
+                ? 'border-black/40 bg-black/5 dark:border-white/40 dark:bg-white/10'
+                : 'border-black/15 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5'
             }`}
           >
             {r}
@@ -32,10 +34,10 @@ function SnoozePanel({ taskId, weeks, close }: { taskId: string; weeks: number; 
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Or type a reason…"
-        className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1 text-sm outline-none focus:border-white/40"
+        className="w-full rounded-md border border-black/15 bg-black/[0.03] px-2 py-1 text-sm outline-none focus:border-black/40 dark:border-white/15 dark:bg-black/30 dark:focus:border-white/40"
       />
       {hasOpenMilestones && (
-        <label className="flex items-center gap-2 text-xs text-white/60">
+        <label className="flex items-center gap-2 text-xs text-black/60 dark:text-white/60">
           <input
             type="checkbox"
             checked={shiftMilestones}
@@ -51,7 +53,7 @@ function SnoozePanel({ taskId, weeks, close }: { taskId: string; weeks: number; 
           snoozeTask(taskId, weeks, reason.trim(), shiftMilestones)
           close()
         }}
-        className="mt-1 self-start rounded-md border border-white/20 bg-white/10 px-3 py-1 text-xs hover:bg-white/20 disabled:opacity-40"
+        className="mt-1 self-start rounded-md border border-black/20 bg-black/5 px-3 py-1 text-xs hover:bg-black/10 disabled:opacity-40 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
       >
         Confirm +{weeks}w
       </button>
@@ -70,7 +72,7 @@ export function SnoozeButtons({ taskId, status }: { taskId: string; status: stri
           trigger={(open) => (
             <button
               onClick={open}
-              className="rounded-md border border-white/15 px-2 py-0.5 text-xs text-white/60 hover:bg-white/10"
+              className="rounded-md border border-black/15 px-2 py-0.5 text-xs text-black/60 hover:bg-black/5 dark:border-white/15 dark:text-white/60 dark:hover:bg-white/10"
               title={`Snooze by ${weeks} week${weeks > 1 ? 's' : ''}`}
             >
               +{weeks}w

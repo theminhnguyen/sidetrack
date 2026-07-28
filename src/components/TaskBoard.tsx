@@ -21,15 +21,15 @@ export function TaskBoard({ onOpenTask }: { onOpenTask: (taskId: string) => void
         const columnTasks = tasks.filter((t) => t.status === col.status)
         return (
           <div key={col.status}>
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-white/50">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-black/50 dark:text-white/50">
               {col.label}
-              <span className="rounded-full bg-white/10 px-1.5 text-xs text-white/60">
+              <span className="rounded-full bg-black/10 px-1.5 text-xs text-black/60 dark:bg-white/10 dark:text-white/60">
                 {columnTasks.length}
               </span>
             </h3>
             <div className="space-y-2">
               {columnTasks.length === 0 && (
-                <p className="rounded-lg border border-dashed border-white/10 px-3 py-4 text-center text-xs text-white/30">
+                <p className="rounded-lg border border-dashed border-black/10 px-3 py-4 text-center text-xs text-black/30 dark:border-white/10 dark:text-white/30">
                   Nothing here
                 </p>
               )}

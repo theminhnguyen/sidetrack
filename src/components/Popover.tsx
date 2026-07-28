@@ -33,7 +33,7 @@ export function Popover({ trigger, children, align = 'left' }: PopoverProps) {
       {trigger(() => setIsOpen((v) => !v))}
       {isOpen && (
         <div
-          className={`absolute z-20 mt-2 min-w-64 rounded-lg border border-white/15 bg-[#1a1a26] p-3 shadow-xl ${
+          className={`absolute z-20 mt-2 min-w-64 rounded-lg border border-black/10 bg-white p-3 text-black shadow-xl dark:border-white/15 dark:bg-[#1a1a26] dark:text-white ${
             align === 'right' ? 'right-0' : 'left-0'
           }`}
         >

@@ -16,6 +16,10 @@ const STATUSES: { value: TaskStatus; label: string }[] = [
   { value: 'done', label: 'Done' },
 ]
 
+const LABEL = 'mb-1 block text-xs text-black/50 dark:text-white/50'
+const INPUT =
+  'w-full rounded-md border border-black/15 bg-black/[0.03] px-2 py-1.5 text-sm outline-none focus:border-black/40 dark:border-white/15 dark:bg-black/30 dark:focus:border-white/40'
+
 export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const task = useAppStore((s) => s.tasks.find((t) => t.id === taskId))
   const users = useAppStore((s) => s.users)
@@ -56,7 +60,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   if (!task) {
     return (
       <Drawer onClose={onClose}>
-        <p className="text-white/60">This task no longer exists.</p>
+        <p className="text-black/60 dark:text-white/60">This task no longer exists.</p>
       </Drawer>
     )
   }
@@ -94,15 +98,18 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => title.trim() && title !== task.title && updateTaskFields(task.id, { title: title.trim() })}
-          className="w-full bg-transparent text-xl font-semibold outline-none focus:border-b focus:border-white/30"
+          className="w-full bg-transparent text-xl font-semibold outline-none focus:border-b focus:border-black/30 dark:focus:border-white/30"
         />
-        <button onClick={onClose} className="shrink-0 rounded-md p-1 text-white/50 hover:bg-white/10 hover:text-white">
+        <button
+          onClick={onClose}
+          className="shrink-0 rounded-md p-1 text-black/50 hover:bg-black/5 hover:text-black dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
+        >
           ✕
         </button>
       </div>
 
-      <div className="mt-5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-emerald-300/80">
+      <div className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-3">
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300/80">
           Deliverable
         </label>
         <textarea
@@ -111,18 +118,14 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
           onBlur={() => deliverable !== task.deliverable && updateTaskFields(task.id, { deliverable })}
           rows={2}
           placeholder="What concrete outcome does 'done' mean?"
-          className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-white/30"
+          className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-black/30 dark:placeholder:text-white/30"
         />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs text-white/50">Status</label>
-          <select
-            value={task.status}
-            onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
-            className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm outline-none focus:border-white/40"
-          >
+          <label className={LABEL}>Status</label>
+          <select value={task.status} onChange={(e) => handleStatusChange(e.target.value as TaskStatus)} className={INPUT}>
             {STATUSES.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
@@ -131,12 +134,12 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
           </select>
           {blockReason !== null && (
             <div className="mt-2 rounded-md border border-rose-500/30 bg-rose-500/[0.06] p-2">
-              <label className="mb-1 block text-xs text-rose-300/80">Why is this blocked?</label>
+              <label className="mb-1 block text-xs text-rose-700 dark:text-rose-300/80">Why is this blocked?</label>
               <input
                 autoFocus
                 value={blockReason}
                 onChange={(e) => setBlockReason(e.target.value)}
-                className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1 text-sm outline-none"
+                className="w-full rounded-md border border-black/15 bg-black/[0.03] px-2 py-1 text-sm outline-none dark:border-white/15 dark:bg-black/30"
               />
               <div className="mt-2 flex gap-2">
                 <button
@@ -145,13 +148,13 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
                     setTaskStatus(task.id, 'blocked', blockReason.trim())
                     setBlockReason(null)
                   }}
-                  className="rounded-md border border-white/15 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+                  className="rounded-md border border-black/15 px-2 py-1 text-xs hover:bg-black/5 disabled:opacity-40 dark:border-white/15 dark:hover:bg-white/10"
                 >
                   Confirm
                 </button>
                 <button
                   onClick={() => setBlockReason(null)}
-                  className="rounded-md px-2 py-1 text-xs text-white/50 hover:text-white"
+                  className="rounded-md px-2 py-1 text-xs text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white"
                 >
                   Cancel
                 </button>
@@ -161,12 +164,8 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-white/50">Assignee</label>
-          <select
-            value={task.assigneeId ?? ''}
-            onChange={(e) => setAssignee(task.id, e.target.value || null)}
-            className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm outline-none focus:border-white/40"
-          >
+          <label className={LABEL}>Assignee</label>
+          <select value={task.assigneeId ?? ''} onChange={(e) => setAssignee(task.id, e.target.value || null)} className={INPUT}>
             <option value="">Unassigned</option>
             {users.filter((u) => u.active).map((u) => (
               <option key={u.id} value={u.id}>
@@ -177,14 +176,16 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-white/50">Size</label>
+          <label className={LABEL}>Size</label>
           <div className="flex gap-1.5">
             {SIZES.map((size) => (
               <button
                 key={size}
                 onClick={() => updateTaskFields(task.id, { size })}
                 className={`flex-1 rounded-md border py-1 text-xs ${
-                  task.size === size ? 'border-white/40 bg-white/10' : 'border-white/10 hover:bg-white/5'
+                  task.size === size
+                    ? 'border-black/40 bg-black/5 dark:border-white/40 dark:bg-white/10'
+                    : 'border-black/10 hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5'
                 }`}
               >
                 {size}
@@ -195,24 +196,19 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
 
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <label className="text-xs text-white/50">Due date</label>
+            <label className="text-xs text-black/50 dark:text-white/50">Due date</label>
             <SnoozeButtons taskId={task.id} status={task.status} />
           </div>
-          <input
-            type="date"
-            value={draftDueDate}
-            onChange={(e) => setDraftDueDate(e.target.value)}
-            className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm outline-none focus:border-white/40"
-          />
+          <input type="date" value={draftDueDate} onChange={(e) => setDraftDueDate(e.target.value)} className={INPUT} />
           {dueDateChanged && (
-            <div className="mt-2 rounded-md border border-white/15 bg-white/[0.04] p-2">
-              <label className="mb-1 block text-xs text-white/50">Reason for the change</label>
+            <div className="mt-2 rounded-md border border-black/15 bg-black/[0.03] p-2 dark:border-white/15 dark:bg-white/[0.04]">
+              <label className={LABEL}>Reason for the change</label>
               <input
                 autoFocus
                 value={dueDateReason}
                 onChange={(e) => setDueDateReason(e.target.value)}
                 placeholder="e.g. Underestimated"
-                className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1 text-sm outline-none"
+                className="w-full rounded-md border border-black/15 bg-black/[0.03] px-2 py-1 text-sm outline-none dark:border-white/15 dark:bg-black/30"
               />
               <div className="mt-2 flex gap-2">
                 <button
@@ -221,7 +217,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
                     shiftDueDate(task.id, draftDueDate, dueDateReason.trim(), 'manual')
                     setDueDateReason('')
                   }}
-                  className="rounded-md border border-white/15 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+                  className="rounded-md border border-black/15 px-2 py-1 text-xs hover:bg-black/5 disabled:opacity-40 dark:border-white/15 dark:hover:bg-white/10"
                 >
                   Save
                 </button>
@@ -230,7 +226,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
                     setDraftDueDate(task.dueDate)
                     setDueDateReason('')
                   }}
-                  className="rounded-md px-2 py-1 text-xs text-white/50 hover:text-white"
+                  className="rounded-md px-2 py-1 text-xs text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white"
                 >
                   Cancel
                 </button>
@@ -241,32 +237,27 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
       </div>
 
       <div className="mt-4">
-        <label className="mb-1 block text-xs text-white/50">Description</label>
+        <label className={LABEL}>Description</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() => description !== task.description && updateTaskFields(task.id, { description })}
           rows={3}
-          className="w-full resize-none rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm outline-none focus:border-white/40"
+          className={`resize-none ${INPUT}`}
         />
       </div>
 
       <div className="mt-5">
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-white/50">Milestones</h3>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Milestones</h3>
         <ul className="space-y-1.5">
           {task.milestones.map((m) => (
             <li key={m.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={m.done}
-                onChange={() => toggleMilestone(task.id, m.id)}
-                className="h-3.5 w-3.5"
-              />
-              <span className={m.done ? 'flex-1 text-white/40 line-through' : 'flex-1'}>{m.title}</span>
-              <span className="text-xs text-white/40">{m.dueDate}</span>
+              <input type="checkbox" checked={m.done} onChange={() => toggleMilestone(task.id, m.id)} className="h-3.5 w-3.5" />
+              <span className={m.done ? 'flex-1 text-black/40 line-through dark:text-white/40' : 'flex-1'}>{m.title}</span>
+              <span className="text-xs text-black/40 dark:text-white/40">{m.dueDate}</span>
               <button
                 onClick={() => removeMilestone(task.id, m.id)}
-                className="text-white/30 hover:text-rose-400"
+                className="text-black/30 hover:text-rose-600 dark:text-white/30 dark:hover:text-rose-400"
                 aria-label={`Remove milestone ${m.title}`}
               >
                 ✕
@@ -287,38 +278,36 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
             value={newMilestoneTitle}
             onChange={(e) => setNewMilestoneTitle(e.target.value)}
             placeholder="New milestone…"
-            className="flex-1 rounded-md border border-white/15 bg-black/30 px-2 py-1 text-sm outline-none focus:border-white/40"
+            className={`flex-1 ${INPUT} py-1`}
           />
           <input
             type="date"
             value={newMilestoneDate}
             onChange={(e) => setNewMilestoneDate(e.target.value)}
-            className="rounded-md border border-white/15 bg-black/30 px-2 py-1 text-sm outline-none focus:border-white/40"
+            className={`${INPUT} w-auto py-1`}
           />
-          <button type="submit" className="rounded-md border border-white/15 px-2 text-xs hover:bg-white/10">
+          <button
+            type="submit"
+            className="rounded-md border border-black/15 px-2 text-xs hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
+          >
             Add
           </button>
         </form>
       </div>
 
       <div className="mt-5">
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-white/50">Depends on</h3>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Depends on</h3>
         {conflicted && (
-          <p className="mb-2 text-xs text-amber-300/90">
+          <p className="mb-2 text-xs text-amber-700 dark:text-amber-300/90">
             ⚠️ A task this depends on finishes later than this one — timeline conflict.
           </p>
         )}
-        {dependencyError && <p className="mb-2 text-xs text-rose-300/90">{dependencyError}</p>}
-        <DependencyPicker
-          allTasks={allTasks}
-          selfId={task.id}
-          value={task.dependsOn}
-          onChange={handleDependsOnChange}
-        />
+        {dependencyError && <p className="mb-2 text-xs text-rose-600 dark:text-rose-300/90">{dependencyError}</p>}
+        <DependencyPicker allTasks={allTasks} selfId={task.id} value={task.dependsOn} onChange={handleDependsOnChange} />
       </div>
 
       <div className="mt-5">
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-white/50">History</h3>
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">History</h3>
         <AuditLog entries={auditLog.filter((e) => e.taskId === task.id)} users={users} task={task} />
       </div>
 
@@ -333,7 +322,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
             onClose()
           }
         }}
-        className="mt-6 text-xs text-rose-400/80 hover:text-rose-300"
+        className="mt-6 text-xs text-rose-600/80 hover:text-rose-700 dark:text-rose-400/80 dark:hover:text-rose-300"
       >
         Delete task
       </button>

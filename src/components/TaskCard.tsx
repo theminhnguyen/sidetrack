@@ -27,26 +27,28 @@ export function TaskCard({
           onClick()
         }
       }}
-      className={`w-full cursor-pointer rounded-lg border px-4 py-3 text-left hover:border-white/25 hover:bg-white/[0.06] ${
-        conflicted ? 'border-amber-500/40 bg-amber-500/[0.05]' : 'border-white/10 bg-white/[0.03]'
+      className={`w-full cursor-pointer rounded-lg border px-4 py-3 text-left hover:border-black/25 hover:bg-black/[0.04] dark:hover:border-white/25 dark:hover:bg-white/[0.06] ${
+        conflicted
+          ? 'border-amber-500/40 bg-amber-500/[0.07]'
+          : 'border-black/10 bg-black/[0.015] dark:border-white/10 dark:bg-white/[0.03]'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <span className="font-medium leading-snug">{task.title}</span>
-        <span className="shrink-0 rounded border border-white/15 px-1.5 py-0.5 text-[11px] text-white/60">
+        <span className="shrink-0 rounded border border-black/15 px-1.5 py-0.5 text-[11px] text-black/60 dark:border-white/15 dark:text-white/60">
           {task.size}
         </span>
       </div>
 
       {task.status === 'blocked' && task.blockedReason && (
-        <p className="mt-1 text-xs text-rose-300/90">🚫 {task.blockedReason}</p>
+        <p className="mt-1 text-xs text-rose-600 dark:text-rose-300/90">🚫 {task.blockedReason}</p>
       )}
       {conflicted && (
-        <p className="mt-1 text-xs text-amber-300/90">⚠️ Depends on a task that finishes later than this one</p>
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-300/90">⚠️ Depends on a task that finishes later than this one</p>
       )}
 
       <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs text-white/50">
+        <div className="flex items-center gap-2 text-xs text-black/50 dark:text-white/50">
           {assignee ? (
             <span className="flex items-center gap-1.5">
               <Avatar user={assignee} size="sm" />
@@ -55,7 +57,7 @@ export function TaskCard({
           ) : (
             <span className="italic">Unassigned</span>
           )}
-          <span className={overdue ? 'font-medium text-rose-400' : ''}>
+          <span className={overdue ? 'font-medium text-rose-600 dark:text-rose-400' : ''}>
             Due {formatDateOnly(task.dueDate)}
           </span>
           {task.snoozeCount >= 2 && <span title={`Snoozed ${task.snoozeCount} times`}>⏰×{task.snoozeCount}</span>}

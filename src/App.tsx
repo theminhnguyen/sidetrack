@@ -6,6 +6,7 @@ import { TaskBoard } from './components/TaskBoard'
 import { TaskDetailDrawer } from './components/TaskDetailDrawer'
 import { NewTaskModal } from './components/NewTaskModal'
 import { CascadeToast } from './components/CascadeToast'
+import { ThemeToggle } from './components/ThemeToggle'
 
 export default function App() {
   const allUsers = useAppStore((s) => s.users)
@@ -39,14 +40,14 @@ export default function App() {
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">SideTrack</h1>
-          <p className="text-sm text-white/50">Side-projects, tracked without the overhead.</p>
+          <p className="text-sm text-black/50 dark:text-white/50">Side-projects, tracked without the overhead.</p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-white/40">Acting as</label>
+          <label className="text-xs text-black/40 dark:text-white/40">Acting as</label>
           <select
             value={currentUserId ?? ''}
             onChange={(e) => setCurrentUser(e.target.value || null)}
-            className="rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm outline-none focus:border-white/40"
+            className="rounded-md border border-black/15 bg-black/[0.03] px-2 py-1.5 text-sm outline-none focus:border-black/40 dark:border-white/15 dark:bg-black/30 dark:focus:border-white/40"
           >
             <option value="">Nobody</option>
             {users.map((u) => (
@@ -57,13 +58,13 @@ export default function App() {
           </select>
           <button
             onClick={handleExport}
-            className="rounded-md border border-white/15 px-3 py-1.5 text-sm hover:bg-white/5"
+            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
           >
             Export JSON
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-md border border-white/15 px-3 py-1.5 text-sm hover:bg-white/5"
+            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
           >
             Import JSON
           </button>
@@ -78,11 +79,12 @@ export default function App() {
               e.target.value = ''
             }}
           />
+          <ThemeToggle />
         </div>
       </header>
 
       {saveError && (
-        <div className="mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">
+        <div className="mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
           Couldn't save to this browser's storage. Export a backup so you don't lose changes.
           <button className="ml-3 underline" onClick={dismissSaveError}>
             Dismiss
@@ -91,7 +93,7 @@ export default function App() {
       )}
 
       {importMessage && (
-        <div className="mb-6 rounded-md border border-white/15 bg-white/5 px-4 py-2 text-sm">
+        <div className="mb-6 rounded-md border border-black/15 bg-black/[0.03] px-4 py-2 text-sm dark:border-white/15 dark:bg-white/5">
           {importMessage}
           <button className="ml-3 underline" onClick={() => setImportMessage(null)}>
             Dismiss
@@ -100,16 +102,16 @@ export default function App() {
       )}
 
       <section className="mb-10">
-        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-white/50">Team</h2>
+        <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Team</h2>
         <TeamBar />
       </section>
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-white/50">Tasks</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Tasks</h2>
           <button
             onClick={() => setIsNewTaskOpen(true)}
-            className="rounded-md border border-white/20 bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20"
+            className="rounded-md border border-black/20 bg-black/5 px-3 py-1.5 text-sm hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
           >
             + New task
           </button>

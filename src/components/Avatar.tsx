@@ -28,7 +28,7 @@ export function Avatar({ user, size = 'md' }: { user: User; size?: 'sm' | 'md' }
 export function CapacityDot({ status, className = '' }: { status: string; className?: string }) {
   return (
     <span
-      className={`inline-block h-2.5 w-2.5 rounded-full ${CAPACITY_DOT[status] ?? 'bg-white/30'} ${className}`}
+      className={`inline-block h-2.5 w-2.5 rounded-full ${CAPACITY_DOT[status] ?? 'bg-black/20 dark:bg-white/30'} ${className}`}
       title={CAPACITY_LABEL[status] ?? status}
     />
   )

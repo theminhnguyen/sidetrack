@@ -1,18 +1,23 @@
 @import "tailwindcss";
 
-@theme {
-  --color-bg: #0b0b12;
-  --color-panel: #14141f;
-  --color-border: #26263a;
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
 }
 
-html {
+:root.dark {
   color-scheme: dark;
 }
 
 body {
   margin: 0;
-  background: var(--color-bg);
-  color: #e5e4ee;
+  background: #ffffff;
+  color: #0b0b12;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+.dark body {
+  background: #0b0b12;
+  color: #e5e4ee;
 }
