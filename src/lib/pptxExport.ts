@@ -1,5 +1,5 @@
-import PptxGenJS from 'pptxgenjs'
-import { toPng } from 'html-to-image'
+import type PptxGenJS from 'pptxgenjs'
+import type { toPng as ToPng } from 'html-to-image'
 import type { AppState, Task } from '../types'
 import { formatDateOnly, formatTimestamp, nowTimestamp } from './dates'
 
@@ -32,7 +32,7 @@ function addSummarySlide(pptx: PptxGenJS, state: AppState) {
   }
 }
 
-async function addGanttSlide(pptx: PptxGenJS, ganttElement: HTMLElement) {
+async function addGanttSlide(pptx: PptxGenJS, ganttElement: HTMLElement, toPng: typeof ToPng) {
   const dataUrl = await toPng(ganttElement, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true })
   const slide = pptx.addSlide()
   slide.addText('Timeline', { x: 0.5, y: 0.3, fontSize: 20, bold: true })
@@ -99,6 +99,10 @@ function addTaskSlides(pptx: PptxGenJS, state: AppState) {
 }
 
 export async function exportToPptx(state: AppState, ganttElement: HTMLElement | null): Promise<void> {
+  // Dynamic imports keep pptxgenjs/html-to-image (~500kB combined) out of the
+  // initial bundle — they're only needed when someone actually exports.
+  const [{ default: PptxGenJS }, { toPng }] = await Promise.all([import('pptxgenjs'), import('html-to-image')])
+
   const pptx = new PptxGenJS()
   pptx.defineLayout({ name: 'SIDETRACK_WIDE', width: 13.33, height: 7.5 })
   pptx.layout = 'SIDETRACK_WIDE'
@@ -107,7 +111,7 @@ export async function exportToPptx(state: AppState, ganttElement: HTMLElement | 
 
   if (ganttElement) {
     try {
-      await addGanttSlide(pptx, ganttElement)
+      await addGanttSlide(pptx, ganttElement, toPng)
     } catch {
       // Capture failed — fall back to a table-only deck rather than risk a corrupt file.
     }
