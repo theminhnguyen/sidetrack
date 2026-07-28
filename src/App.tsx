@@ -7,6 +7,10 @@ import { TaskDetailDrawer } from './components/TaskDetailDrawer'
 import { NewTaskModal } from './components/NewTaskModal'
 import { CascadeToast } from './components/CascadeToast'
 import { ThemeToggle } from './components/ThemeToggle'
+import { GanttChart } from './components/GanttChart'
+import { ErrorBoundary } from './components/ErrorBoundary'
+
+type ViewTab = 'board' | 'gantt'
 
 export default function App() {
   const allUsers = useAppStore((s) => s.users)
@@ -21,6 +25,7 @@ export default function App() {
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false)
+  const [viewTab, setViewTab] = useState<ViewTab>('board')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleExport() {
@@ -36,7 +41,7 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-5xl px-6 py-10">
+    <div className="mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">SideTrack</h1>
@@ -108,7 +113,24 @@ export default function App() {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Tasks</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Tasks</h2>
+            <div className="flex gap-1.5">
+              {(['board', 'gantt'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setViewTab(tab)}
+                  className={`rounded-md border px-2.5 py-1 text-xs capitalize ${
+                    viewTab === tab
+                      ? 'border-black/40 bg-black/5 dark:border-white/40 dark:bg-white/10'
+                      : 'border-black/15 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
           <button
             onClick={() => setIsNewTaskOpen(true)}
             className="rounded-md border border-black/20 bg-black/5 px-3 py-1.5 text-sm hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
@@ -116,7 +138,13 @@ export default function App() {
             + New task
           </button>
         </div>
-        <TaskBoard onOpenTask={setSelectedTaskId} />
+        {viewTab === 'board' ? (
+          <TaskBoard onOpenTask={setSelectedTaskId} />
+        ) : (
+          <ErrorBoundary>
+            <GanttChart onOpenTask={setSelectedTaskId} />
+          </ErrorBoundary>
+        )}
       </section>
 
       {selectedTaskId && (

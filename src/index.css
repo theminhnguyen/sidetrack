@@ -21,3 +21,46 @@ body {
   background: #0b0b12;
   color: #e5e4ee;
 }
+
+/*
+ * frappe-gantt adds `custom_class` via classList.add(wholeString), which
+ * throws if the string contains a space. So each row gets exactly ONE
+ * hyphen/underscore-joined token (see lib/ganttAdapter.ts) and these rules
+ * match a *substring* of it with [class*="..."] instead of normal class
+ * selectors. Assignee indices must match src/store/useAppStore.ts AVATAR_PALETTE order.
+ */
+[class*="gantt-assignee-0_"] .bar { fill: #7C5CFF !important; }
+[class*="gantt-assignee-1_"] .bar { fill: #22c55e !important; }
+[class*="gantt-assignee-2_"] .bar { fill: #0ea5e9 !important; }
+[class*="gantt-assignee-3_"] .bar { fill: #f97316 !important; }
+[class*="gantt-assignee-4_"] .bar { fill: #ec4899 !important; }
+[class*="gantt-assignee-5_"] .bar { fill: #eab308 !important; }
+[class*="gantt-assignee-6_"] .bar { fill: #14b8a6 !important; }
+[class*="gantt-assignee-7_"] .bar { fill: #a855f7 !important; }
+[class*="gantt-assignee-8_"] .bar { fill: #ef4444 !important; }
+[class*="gantt-assignee-9_"] .bar { fill: #84cc16 !important; }
+
+[class*="status-done"] { opacity: 0.45; }
+
+[class*="status-blocked"] .bar {
+  stroke: #ef4444;
+  stroke-width: 2px;
+  stroke-dasharray: 5 3;
+}
+
+[class*="status-conflict"] .bar {
+  stroke: #f59e0b;
+  stroke-width: 2.5px;
+}
+
+[class*="gantt-milestone"] .bar {
+  fill: #a855f7 !important;
+}
+
+[class*="gantt-milestone_done"] {
+  opacity: 0.45;
+}
+
+.gantt-shell .gantt-container {
+  width: 100%;
+}

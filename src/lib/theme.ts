@@ -16,6 +16,8 @@ function getInitialTheme(): Theme {
 
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', theme === 'dark')
+  // frappe-gantt reads this attribute itself for its own dark theme variables.
+  document.documentElement.setAttribute('data-theme', theme)
 }
 
 export function useTheme(): [Theme, () => void] {
