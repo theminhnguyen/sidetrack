@@ -1,4 +1,4 @@
-import { addDays, addWeeks, format } from 'date-fns'
+import { addDays, addWeeks, format, subDays } from 'date-fns'
 import type { DateOnly } from '../types'
 
 /**
@@ -52,6 +52,10 @@ export function formatDateOnly(date: DateOnly): string {
 
 export function nowTimestamp(): string {
   return new Date().toISOString()
+}
+
+export function timestampDaysAgo(days: number): string {
+  return subDays(new Date(), days).toISOString()
 }
 
 export function formatTimestamp(timestamp: string): string {

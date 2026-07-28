@@ -9,6 +9,8 @@ import { CascadeToast } from './components/CascadeToast'
 import { ThemeToggle } from './components/ThemeToggle'
 import { GanttChart } from './components/GanttChart'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { DigestModal } from './components/DigestModal'
+import { exportToPptx } from './lib/pptxExport'
 
 type ViewTab = 'board' | 'gantt'
 
@@ -26,7 +28,11 @@ export default function App() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false)
   const [viewTab, setViewTab] = useState<ViewTab>('board')
+  const [isDigestOpen, setIsDigestOpen] = useState(false)
+  const [isExportingPptx, setIsExportingPptx] = useState(false)
+  const [pptxError, setPptxError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const ganttContainerRef = useRef<HTMLDivElement>(null)
 
   function handleExport() {
     const json = exportJSON()
@@ -40,6 +46,18 @@ export default function App() {
     setImportMessage(result.ok ? 'Import successful.' : `Import failed: ${result.error}`)
   }
 
+  async function handleExportPptx() {
+    setPptxError(null)
+    setIsExportingPptx(true)
+    try {
+      await exportToPptx(useAppStore.getState(), viewTab === 'gantt' ? ganttContainerRef.current : null)
+    } catch {
+      setPptxError('Could not generate the PowerPoint file. Please try again.')
+    } finally {
+      setIsExportingPptx(false)
+    }
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-7xl px-6 py-10">
       <header className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
@@ -48,6 +66,19 @@ export default function App() {
           <p className="text-sm text-black/50 dark:text-white/50">Side-projects, tracked without the overhead.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsDigestOpen(true)}
+            className="rounded-md border border-black/20 bg-black/5 px-3 py-1.5 text-sm hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
+          >
+            Status report
+          </button>
+          <button
+            onClick={handleExportPptx}
+            disabled={isExportingPptx}
+            className="rounded-md border border-black/20 bg-black/5 px-3 py-1.5 text-sm hover:bg-black/10 disabled:opacity-40 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
+          >
+            {isExportingPptx ? 'Exporting…' : 'Export PPTX'}
+          </button>
           <label className="text-xs text-black/40 dark:text-white/40">Acting as</label>
           <select
             value={currentUserId ?? ''}
@@ -92,6 +123,15 @@ export default function App() {
         <div className="mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
           Couldn't save to this browser's storage. Export a backup so you don't lose changes.
           <button className="ml-3 underline" onClick={dismissSaveError}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {pptxError && (
+        <div className="mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
+          {pptxError}
+          <button className="ml-3 underline" onClick={() => setPptxError(null)}>
             Dismiss
           </button>
         </div>
@@ -142,7 +182,7 @@ export default function App() {
           <TaskBoard onOpenTask={setSelectedTaskId} />
         ) : (
           <ErrorBoundary>
-            <GanttChart onOpenTask={setSelectedTaskId} />
+            <GanttChart onOpenTask={setSelectedTaskId} exportContainerRef={ganttContainerRef} />
           </ErrorBoundary>
         )}
       </section>
@@ -160,6 +200,8 @@ export default function App() {
           }}
         />
       )}
+
+      {isDigestOpen && <DigestModal onClose={() => setIsDigestOpen(false)} />}
 
       <CascadeToast />
     </div>

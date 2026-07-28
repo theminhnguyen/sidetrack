@@ -80,6 +80,8 @@ interface AppStore extends AppState {
   exportJSON: () => string
   importJSON: (json: string) => { ok: true } | { ok: false; error: string }
   resetToSeed: () => void
+
+  setLastDigestAt: (timestamp: string) => void
 }
 
 function persist(state: AppState) {
@@ -464,6 +466,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const next = { ...get(), ...seeded }
     set(next)
     persist(seeded)
+  },
+
+  setLastDigestAt: (timestamp) => {
+    const state = get()
+    const settings = { ...state.settings, lastDigestAt: timestamp }
+    const next = { ...state, settings }
+    set(next)
+    persist(next)
   },
 }))
 

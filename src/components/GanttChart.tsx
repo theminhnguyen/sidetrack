@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import Gantt from 'frappe-gantt'
 // Vendored copy — frappe-gantt's package.json "exports" map doesn't expose
 // ./dist/frappe-gantt.css as an importable subpath, so bundlers reject it directly.
@@ -25,13 +25,21 @@ function findMilestoneOwner(tasks: ReturnType<typeof useAppStore.getState>['task
   return tasks.find((t) => t.milestones.some((m) => m.id === milestoneId))
 }
 
-export function GanttChart({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
+export function GanttChart({
+  onOpenTask,
+  exportContainerRef,
+}: {
+  onOpenTask: (taskId: string) => void
+  /** Lets the parent capture this DOM node (e.g. for PPTX export) without prop-drilling the Gantt instance itself. */
+  exportContainerRef?: RefObject<HTMLDivElement | null>
+}) {
   const tasks = useAppStore((s) => s.tasks)
   const users = useAppStore((s) => s.users)
   const shiftDueDate = useAppStore((s) => s.shiftDueDate)
   const updateTaskFields = useAppStore((s) => s.updateTaskFields)
 
-  const containerRef = useRef<HTMLDivElement>(null)
+  const ownContainerRef = useRef<HTMLDivElement>(null)
+  const containerRef = exportContainerRef ?? ownContainerRef
   const ganttRef = useRef<Gantt | null>(null)
   const rowsRef = useRef<GanttRow[]>([])
 
