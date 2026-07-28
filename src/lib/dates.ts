@@ -53,3 +53,7 @@ export function formatDateOnly(date: DateOnly): string {
 export function nowTimestamp(): string {
   return new Date().toISOString()
 }
+
+export function formatTimestamp(timestamp: string): string {
+  return format(new Date(timestamp), 'MMM d')
+}
