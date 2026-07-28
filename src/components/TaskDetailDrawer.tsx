@@ -4,7 +4,9 @@ import type { TaskSize, TaskStatus } from '../types'
 import { Drawer } from './Drawer'
 import { DependencyPicker } from './DependencyPicker'
 import { AuditLog } from './AuditLog'
+import { SnoozeButtons } from './SnoozeButton'
 import { today } from '../lib/dates'
+import { findCycle, getDirectDependents, isConflicted } from '../lib/dependencyGraph'
 
 const SIZES: TaskSize[] = ['S', 'M', 'L', 'XL']
 const STATUSES: { value: TaskStatus; label: string }[] = [
@@ -37,6 +39,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const [dueDateReason, setDueDateReason] = useState('')
   const [newMilestoneTitle, setNewMilestoneTitle] = useState('')
   const [newMilestoneDate, setNewMilestoneDate] = useState(today())
+  const [dependencyError, setDependencyError] = useState<string | null>(null)
 
   // Re-sync drafts only when switching tasks, not on every store update —
   // otherwise an unrelated change (e.g. toggling a milestone) would clobber
@@ -68,7 +71,21 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
     setTaskStatus(task.id, next)
   }
 
+  function handleDependsOnChange(next: string[]) {
+    if (!task) return
+    const cycle = findCycle(allTasks, task.id, next)
+    if (cycle) {
+      setDependencyError(`That would create a cycle: ${cycle.join(' → ')}`)
+      return
+    }
+    setDependencyError(null)
+    setDependsOn(task.id, next)
+  }
+
   const dueDateChanged = draftDueDate !== task.dueDate
+  const tasksById = new Map(allTasks.map((t) => [t.id, t]))
+  const conflicted = isConflicted(task, tasksById)
+  const dependents = getDirectDependents(allTasks, task.id)
 
   return (
     <Drawer onClose={onClose}>
@@ -177,7 +194,10 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-white/50">Due date</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs text-white/50">Due date</label>
+            <SnoozeButtons taskId={task.id} status={task.status} />
+          </div>
           <input
             type="date"
             value={draftDueDate}
@@ -283,11 +303,17 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
 
       <div className="mt-5">
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-white/50">Depends on</h3>
+        {conflicted && (
+          <p className="mb-2 text-xs text-amber-300/90">
+            ⚠️ A task this depends on finishes later than this one — timeline conflict.
+          </p>
+        )}
+        {dependencyError && <p className="mb-2 text-xs text-rose-300/90">{dependencyError}</p>}
         <DependencyPicker
           allTasks={allTasks}
           selfId={task.id}
           value={task.dependsOn}
-          onChange={(next) => setDependsOn(task.id, next)}
+          onChange={handleDependsOnChange}
         />
       </div>
 
@@ -298,7 +324,11 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
 
       <button
         onClick={() => {
-          if (window.confirm(`Delete "${task.title}"? This cannot be undone.`)) {
+          const warning =
+            dependents.length > 0
+              ? `${dependents.length} task(s) depend on this one and will have the dependency removed. `
+              : ''
+          if (window.confirm(`${warning}Delete "${task.title}"? This cannot be undone.`)) {
             deleteTask(task.id)
             onClose()
           }

@@ -11,10 +11,11 @@ import {
   createEmptyState,
 } from '../types'
 import { createId } from '../lib/id'
-import { nowTimestamp, today } from '../lib/dates'
+import { addWeeksToDateOnly, nowTimestamp, today } from '../lib/dates'
 import { localStorageAdapter } from '../storage/localStorageAdapter'
 import { migrate } from '../storage/StorageAdapter'
 import { seedState } from '../data/seed'
+import { computeCascadePlan, type CascadeShift } from '../lib/dependencyGraph'
 
 export const AVATAR_PALETTE = [
   '#7C5CFF', '#22c55e', '#0ea5e9', '#f97316', '#ec4899',
@@ -32,12 +33,21 @@ interface NewTaskInput {
   dependsOn?: string[]
 }
 
+export interface CascadeSuggestion {
+  rootTaskId: string
+  rootTitle: string
+  plan: CascadeShift[]
+}
+
 interface AppStore extends AppState {
   currentUserId: string | null
   saveError: boolean
+  cascadeSuggestion: CascadeSuggestion | null
 
   setCurrentUser: (userId: string | null) => void
   dismissSaveError: () => void
+  dismissCascadeSuggestion: () => void
+  confirmCascadeSuggestion: () => void
 
   addUser: (name: string) => User
   renameUser: (id: string, name: string) => void
@@ -65,6 +75,7 @@ interface AppStore extends AppState {
     reason: string,
     delta: string,
   ) => void
+  snoozeTask: (id: string, weeks: number, reason: string, shiftOpenMilestones: boolean) => void
 
   exportJSON: () => string
   importJSON: (json: string) => { ok: true } | { ok: false; error: string }
@@ -104,9 +115,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
   ...loadInitialState(),
   currentUserId: null,
   saveError: false,
+  cascadeSuggestion: null,
 
   setCurrentUser: (userId) => set({ currentUserId: userId }),
   dismissSaveError: () => set({ saveError: false }),
+  dismissCascadeSuggestion: () => set({ cascadeSuggestion: null }),
+  confirmCascadeSuggestion: () => {
+    const suggestion = get().cascadeSuggestion
+    if (!suggestion) return
+    const state = get()
+    const shiftsByTaskId = new Map(suggestion.plan.map((s) => [s.taskId, s]))
+    const auditLog = [...state.auditLog]
+    const tasks = state.tasks.map((t) => {
+      const shift = shiftsByTaskId.get(t.id)
+      if (!shift) return t
+      logEvent(auditLog, t.id, state.currentUserId, 'deadline_shifted', {
+        field: 'dueDate',
+        from: shift.from,
+        to: shift.to,
+        delta: 'cascade',
+        reason: `Cascade from ${suggestion.rootTitle}`,
+      })
+      return { ...t, dueDate: shift.to, snoozeCount: t.snoozeCount + 1, updatedAt: nowTimestamp() }
+    })
+    const next = { ...state, tasks, auditLog, cascadeSuggestion: null }
+    set(next)
+    persist(next)
+  },
 
   addUser: (name) => {
     const { users } = get()
@@ -342,6 +377,54 @@ export const useAppStore = create<AppStore>((set, get) => ({
       reason,
     })
     const next = { ...state, tasks, auditLog }
+    set(next)
+    persist(next)
+  },
+
+  snoozeTask: (id, weeks, reason, shiftOpenMilestones) => {
+    const state = get()
+    const task = state.tasks.find((t) => t.id === id)
+    if (!task) return
+
+    const newDueDate = addWeeksToDateOnly(task.dueDate, weeks)
+    const deltaLabel = `${weeks > 0 ? '+' : ''}${weeks}w`
+
+    const tasks = state.tasks.map((t) => {
+      if (t.id !== id) return t
+      const milestones = shiftOpenMilestones
+        ? t.milestones.map((m) => (m.done ? m : { ...m, dueDate: addWeeksToDateOnly(m.dueDate, weeks) }))
+        : t.milestones
+      return { ...t, dueDate: newDueDate, snoozeCount: t.snoozeCount + 1, milestones, updatedAt: nowTimestamp() }
+    })
+
+    const auditLog = [...state.auditLog]
+    logEvent(auditLog, id, state.currentUserId, 'deadline_shifted', {
+      field: 'dueDate',
+      from: task.dueDate,
+      to: newDueDate,
+      delta: deltaLabel,
+      reason,
+    })
+    if (shiftOpenMilestones) {
+      for (const m of task.milestones) {
+        if (m.done) continue
+        logEvent(auditLog, id, state.currentUserId, 'milestone_shifted', {
+          milestoneId: m.id,
+          from: m.dueDate,
+          to: addWeeksToDateOnly(m.dueDate, weeks),
+          reason: 'Shifted along with the task snooze',
+        })
+      }
+    }
+
+    const cascadePlan = computeCascadePlan(tasks, id, weeks)
+    const next = {
+      ...state,
+      tasks,
+      auditLog,
+      cascadeSuggestion:
+        cascadePlan.length > 0 ? { rootTaskId: id, rootTitle: task.title, plan: cascadePlan } : state.cascadeSuggestion,
+    }
     set(next)
     persist(next)
   },

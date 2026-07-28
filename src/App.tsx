@@ -5,6 +5,7 @@ import { TeamBar } from './components/TeamBar'
 import { TaskBoard } from './components/TaskBoard'
 import { TaskDetailDrawer } from './components/TaskDetailDrawer'
 import { NewTaskModal } from './components/NewTaskModal'
+import { CascadeToast } from './components/CascadeToast'
 
 export default function App() {
   const allUsers = useAppStore((s) => s.users)
@@ -129,6 +130,8 @@ export default function App() {
           }}
         />
       )}
+
+      <CascadeToast />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useAppStore } from '../store/useAppStore'
 import type { TaskStatus } from '../types'
 import { TaskCard } from './TaskCard'
+import { isConflicted } from '../lib/dependencyGraph'
 
 const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'todo', label: 'To do' },
@@ -12,6 +13,7 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
 export function TaskBoard({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
   const tasks = useAppStore((s) => s.tasks)
   const users = useAppStore((s) => s.users)
+  const tasksById = new Map(tasks.map((t) => [t.id, t]))
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -36,6 +38,7 @@ export function TaskBoard({ onOpenTask }: { onOpenTask: (taskId: string) => void
                   key={task.id}
                   task={task}
                   assignee={users.find((u) => u.id === task.assigneeId)}
+                  conflicted={task.status !== 'done' && isConflicted(task, tasksById)}
                   onClick={() => onOpenTask(task.id)}
                 />
               ))}
