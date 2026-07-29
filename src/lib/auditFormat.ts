@@ -39,8 +39,9 @@ export function formatAuditEntry(entry: AuditLogEntry, users: User[], task?: Tas
       const to = formatDateOnly(p.to as string)
       const delta = p.delta as string
       const reason = p.reason as string
-      const deltaLabel = delta === 'manual' ? '' : ` (${delta})`
-      return `${who} moved the deadline from ${from} to ${to}${deltaLabel} — "${reason}"`
+      const deltaLabel = delta === 'manual' || delta === 'cascade' ? '' : ` (${delta})`
+      const what = p.field === 'startDate' ? 'the start date' : 'the deadline'
+      return `${who} moved ${what} from ${from} to ${to}${deltaLabel} — "${reason}"`
     }
 
     case 'milestone_shifted': {

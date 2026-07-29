@@ -5,12 +5,19 @@ import { nowTimestamp } from '../lib/dates'
 import { Modal } from './Modal'
 
 export function DigestModal({ onClose }: { onClose: () => void }) {
-  const state = useAppStore()
+  const tasks = useAppStore((s) => s.tasks)
+  const users = useAppStore((s) => s.users)
+  const auditLog = useAppStore((s) => s.auditLog)
+  const settings = useAppStore((s) => s.settings)
+  const schemaVersion = useAppStore((s) => s.schemaVersion)
   const setLastDigestAt = useAppStore((s) => s.setLastDigestAt)
   const [copied, setCopied] = useState(false)
   const [baselineUpdated, setBaselineUpdated] = useState(false)
 
-  const text = useMemo(() => formatDigestText(buildDigest(state)), [state])
+  const text = useMemo(
+    () => formatDigestText(buildDigest({ schemaVersion, users, tasks, auditLog, settings })),
+    [schemaVersion, users, tasks, auditLog, settings],
+  )
 
   async function handleCopy() {
     try {

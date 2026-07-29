@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { TaskStatus } from '../types'
 import { TaskCard } from './TaskCard'
@@ -13,7 +14,8 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
 export function TaskBoard({ onOpenTask }: { onOpenTask: (taskId: string) => void }) {
   const tasks = useAppStore((s) => s.tasks)
   const users = useAppStore((s) => s.users)
-  const tasksById = new Map(tasks.map((t) => [t.id, t]))
+  const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+  const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -37,7 +39,7 @@ export function TaskBoard({ onOpenTask }: { onOpenTask: (taskId: string) => void
                 <TaskCard
                   key={task.id}
                   task={task}
-                  assignee={users.find((u) => u.id === task.assigneeId)}
+                  assignee={task.assigneeId ? usersById.get(task.assigneeId) : undefined}
                   conflicted={task.status !== 'done' && isConflicted(task, tasksById)}
                   onClick={() => onOpenTask(task.id)}
                 />

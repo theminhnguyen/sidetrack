@@ -9,7 +9,7 @@ import {
   type User,
 } from '../types'
 import { createId } from '../lib/id'
-import { addWeeksToDateOnly, nowTimestamp, today } from '../lib/dates'
+import { addWeeksToDateOnly, isAfterDateOnly, nowTimestamp, today } from '../lib/dates'
 import { localStorageAdapter } from '../storage/localStorageAdapter'
 import { migrate } from '../storage/StorageAdapter'
 import { seedState } from '../data/seed'
@@ -73,6 +73,7 @@ interface AppStore extends AppState {
     reason: string,
     delta: string,
   ) => void
+  shiftStartDate: (id: string, newDate: string, reason: string) => void
   snoozeTask: (id: string, weeks: number, reason: string, shiftOpenMilestones: boolean) => void
 
   exportJSON: () => string
@@ -81,8 +82,31 @@ interface AppStore extends AppState {
   setLastDigestAt: (timestamp: string) => void
 }
 
+/**
+ * Persist only the AppState slice. `get()` also carries session-only fields
+ * (currentUserId, saveError, cascadeSuggestion) and the action functions, none
+ * of which belong in storage — a persisted `saveError: true` or a stale cascade
+ * suggestion would otherwise be one reordered line away from resurfacing on load.
+ */
 function persist(state: AppState) {
-  localStorageAdapter.save(state)
+  localStorageAdapter.save({
+    schemaVersion: state.schemaVersion,
+    users: state.users,
+    tasks: state.tasks,
+    auditLog: state.auditLog,
+    settings: state.settings,
+  })
+}
+
+function deriveInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 }
 
 function logEvent(
@@ -144,18 +168,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   addUser: (name) => {
     const { users } = get()
-    const initials = name
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase()
     const user: User = {
       id: createId('u'),
       name,
-      initials,
+      initials: deriveInitials(name),
       color: AVATAR_PALETTE[users.length % AVATAR_PALETTE.length],
       capacity: { status: 'green', note: null, updatedAt: nowTimestamp() },
       active: true,
@@ -167,7 +183,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   renameUser: (id, name) => {
-    const users = get().users.map((u) => (u.id === id ? { ...u, name } : u))
+    // Initials are derived from the name, so they have to move with it.
+    const users = get().users.map((u) => (u.id === id ? { ...u, name, initials: deriveInitials(name) } : u))
     const next = { ...get(), users }
     set(next)
     persist(next)
@@ -243,11 +260,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     const tasks = state.tasks.map((t) => {
       if (t.id !== id) return t
+      // Re-marking an already-done task must keep the original completedAt,
+      // otherwise it would resurface in the next digest as "newly done".
+      // Leaving `done` clears it so a reopened task doesn't ghost through either.
+      let completedAt = t.completedAt
+      if (status === 'done') completedAt = t.completedAt ?? nowTimestamp()
+      else if (status !== t.status) completedAt = null
+
       return {
         ...t,
         status,
         blockedReason: status === 'blocked' ? (reason ?? t.blockedReason) : null,
-        completedAt: status === 'done' ? nowTimestamp() : status === t.status ? t.completedAt : null,
+        completedAt,
         updatedAt: nowTimestamp(),
       }
     })
@@ -362,9 +386,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const task = state.tasks.find((t) => t.id === id)
     if (!task) return
 
+    // snoozeCount drives the "this keeps slipping" badge, so only a later date
+    // counts — pulling a deadline forward is the opposite of a slip.
+    const slipped = isAfterDateOnly(newDate, task.dueDate)
     const tasks = state.tasks.map((t) =>
       t.id === id
-        ? { ...t, dueDate: newDate, snoozeCount: t.snoozeCount + 1, updatedAt: nowTimestamp() }
+        ? { ...t, dueDate: newDate, snoozeCount: slipped ? t.snoozeCount + 1 : t.snoozeCount, updatedAt: nowTimestamp() }
         : t,
     )
     const auditLog = [...state.auditLog]
@@ -373,6 +400,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
       from: task.dueDate,
       to: newDate,
       delta,
+      reason,
+    })
+    const next = { ...state, tasks, auditLog }
+    set(next)
+    persist(next)
+  },
+
+  shiftStartDate: (id, newDate, reason) => {
+    const state = get()
+    const task = state.tasks.find((t) => t.id === id)
+    if (!task || task.startDate === newDate) return
+
+    const tasks = state.tasks.map((t) =>
+      t.id === id ? { ...t, startDate: newDate, updatedAt: nowTimestamp() } : t,
+    )
+    const auditLog = [...state.auditLog]
+    logEvent(auditLog, id, state.currentUserId, 'deadline_shifted', {
+      field: 'startDate',
+      from: task.startDate,
+      to: newDate,
+      delta: 'manual',
       reason,
     })
     const next = { ...state, tasks, auditLog }

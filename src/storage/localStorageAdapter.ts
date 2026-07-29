@@ -6,6 +6,20 @@ const DEBOUNCE_MS = 500
 
 export type SaveFailureListener = (error: unknown) => void
 
+/**
+ * Reading `localStorage` can itself throw — some privacy modes and locked-down
+ * enterprise profiles disable storage entirely rather than just failing writes.
+ * Resolving it lazily and defensively keeps that from turning into a blank page
+ * on boot, and keeps the module importable outside a browser.
+ */
+function getStorage(): Storage | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage
+  } catch {
+    return null
+  }
+}
+
 export class LocalStorageAdapter implements StorageAdapter {
   private pendingTimer: ReturnType<typeof setTimeout> | null = null
   private pendingState: AppState | null = null
@@ -16,9 +30,11 @@ export class LocalStorageAdapter implements StorageAdapter {
   }
 
   load(): AppState {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return createEmptyState()
+    const storage = getStorage()
+    if (!storage) return createEmptyState()
     try {
+      const raw = storage.getItem(STORAGE_KEY)
+      if (!raw) return createEmptyState()
       return migrate(JSON.parse(raw))
     } catch {
       return createEmptyState()
@@ -37,9 +53,17 @@ export class LocalStorageAdapter implements StorageAdapter {
       clearTimeout(this.pendingTimer)
       this.pendingTimer = null
     }
-    if (!this.pendingState) return
+    const state = this.pendingState
+    if (!state) return
+    this.pendingState = null
+
+    const storage = getStorage()
+    if (!storage) {
+      this.onSaveFailure?.(new Error('This browser has no usable local storage.'))
+      return
+    }
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.pendingState))
+      storage.setItem(STORAGE_KEY, JSON.stringify(state))
     } catch (error) {
       this.onSaveFailure?.(error)
     }
@@ -48,4 +72,6 @@ export class LocalStorageAdapter implements StorageAdapter {
 
 export const localStorageAdapter = new LocalStorageAdapter()
 
-window.addEventListener('beforeunload', () => localStorageAdapter.flush())
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => localStorageAdapter.flush())
+}

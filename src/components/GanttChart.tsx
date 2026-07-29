@@ -28,20 +28,29 @@ function findMilestoneOwner(tasks: ReturnType<typeof useAppStore.getState>['task
 export function GanttChart({
   onOpenTask,
   exportContainerRef,
+  visible = true,
 }: {
   onOpenTask: (taskId: string) => void
   /** Lets the parent capture this DOM node (e.g. for PPTX export) without prop-drilling the Gantt instance itself. */
   exportContainerRef?: RefObject<HTMLDivElement | null>
+  /**
+   * False while the Gantt tab is in the background. The component stays mounted
+   * rather than unmounting, because frappe-gantt binds a document-level mouseup
+   * listener per instance and never removes it — recreating the chart on every
+   * tab switch leaks one listener (plus the whole chart it closes over) each time.
+   */
+  visible?: boolean
 }) {
   const tasks = useAppStore((s) => s.tasks)
   const users = useAppStore((s) => s.users)
   const shiftDueDate = useAppStore((s) => s.shiftDueDate)
-  const updateTaskFields = useAppStore((s) => s.updateTaskFields)
+  const shiftStartDate = useAppStore((s) => s.shiftStartDate)
 
   const ownContainerRef = useRef<HTMLDivElement>(null)
   const containerRef = exportContainerRef ?? ownContainerRef
   const ganttRef = useRef<Gantt | null>(null)
   const rowsRef = useRef<GanttRow[]>([])
+  const justCreatedRef = useRef(false)
 
   const [assigneeId, setAssigneeId] = useState<string>('all')
   const [hideDone, setHideDone] = useState(false)
@@ -63,6 +72,7 @@ export function GanttChart({
   useEffect(() => {
     if (!containerRef.current || ganttRef.current || rows.length === 0) return
 
+    justCreatedRef.current = true
     ganttRef.current = new Gantt(containerRef.current, rows, {
       view_mode: viewMode,
       view_mode_select: false,
@@ -90,14 +100,22 @@ export function GanttChart({
     })
   }, [rows])
 
-  // Keep an existing chart's data in sync with the store/filters.
+  // Keep an existing chart's data in sync with the store/filters. Skipped right
+  // after construction, which already rendered these exact rows.
   useEffect(() => {
+    if (justCreatedRef.current) {
+      justCreatedRef.current = false
+      return
+    }
     if (ganttRef.current) ganttRef.current.refresh(rows)
   }, [rows])
 
+  // Applies a view-mode switch, and doubles as the re-layout when the tab comes
+  // back into view: column widths are measured from the container, so anything
+  // rendered while hidden (width 0) has to be re-rendered once it's on screen.
   useEffect(() => {
-    if (ganttRef.current) ganttRef.current.change_view_mode(viewMode)
-  }, [viewMode])
+    if (visible && ganttRef.current) ganttRef.current.change_view_mode(viewMode)
+  }, [visible, viewMode])
 
   function cancelDragChange() {
     setDragChange(null)
@@ -109,7 +127,7 @@ export function GanttChart({
     if (!dragChange) return
     const task = useAppStore.getState().tasks.find((t) => t.id === dragChange.taskId)
     if (task && dragChange.newStart !== task.startDate) {
-      updateTaskFields(dragChange.taskId, { startDate: dragChange.newStart })
+      shiftStartDate(dragChange.taskId, dragChange.newStart, dragReason.trim())
     }
     if (task && dragChange.newEnd !== task.dueDate) {
       shiftDueDate(dragChange.taskId, dragChange.newEnd, dragReason.trim(), 'manual')

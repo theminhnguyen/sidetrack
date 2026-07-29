@@ -34,6 +34,11 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const ganttContainerRef = useRef<HTMLDivElement>(null)
 
+  // Monotonic false -> true: once the Gantt has been opened it stays mounted.
+  const hasOpenedGanttRef = useRef(false)
+  if (viewTab === 'gantt') hasOpenedGanttRef.current = true
+  const hasOpenedGantt = hasOpenedGanttRef.current
+
   function handleExport() {
     const json = exportJSON()
     const date = new Date().toISOString().slice(0, 10)
@@ -178,12 +183,21 @@ export default function App() {
             + New task
           </button>
         </div>
-        {viewTab === 'board' ? (
-          <TaskBoard onOpenTask={setSelectedTaskId} />
-        ) : (
-          <ErrorBoundary>
-            <GanttChart onOpenTask={setSelectedTaskId} exportContainerRef={ganttContainerRef} />
-          </ErrorBoundary>
+        {viewTab === 'board' && <TaskBoard onOpenTask={setSelectedTaskId} />}
+        {/*
+          Mounted lazily on first use, then kept mounted (just hidden) — see the
+          `visible` prop in GanttChart for why recreating it would leak.
+        */}
+        {hasOpenedGantt && (
+          <div className={viewTab === 'gantt' ? undefined : 'hidden'}>
+            <ErrorBoundary>
+              <GanttChart
+                onOpenTask={setSelectedTaskId}
+                exportContainerRef={ganttContainerRef}
+                visible={viewTab === 'gantt'}
+              />
+            </ErrorBoundary>
+          </div>
         )}
       </section>
 

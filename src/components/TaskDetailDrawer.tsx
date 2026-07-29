@@ -5,7 +5,7 @@ import { Drawer } from './Drawer'
 import { DependencyPicker } from './DependencyPicker'
 import { AuditLog } from './AuditLog'
 import { SnoozeButtons } from './SnoozeButton'
-import { today } from '../lib/dates'
+import { formatDateOnly, today } from '../lib/dates'
 import { findCycle, getDirectDependents, isConflicted } from '../lib/dependencyGraph'
 
 const SIZES: TaskSize[] = ['S', 'M', 'L', 'XL']
@@ -97,7 +97,15 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => title.trim() && title !== task.title && updateTaskFields(task.id, { title: title.trim() })}
+          onBlur={() => {
+            // A task must keep a title, so an empty field snaps back to the
+            // stored value instead of silently discarding the edit.
+            if (!title.trim()) {
+              setTitle(task.title)
+              return
+            }
+            if (title !== task.title) updateTaskFields(task.id, { title: title.trim() })
+          }}
           className="w-full bg-transparent text-xl font-semibold outline-none focus:border-b focus:border-black/30 dark:focus:border-white/30"
         />
         <button
@@ -254,7 +262,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
             <li key={m.id} className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={m.done} onChange={() => toggleMilestone(task.id, m.id)} className="h-3.5 w-3.5" />
               <span className={m.done ? 'flex-1 text-black/40 line-through dark:text-white/40' : 'flex-1'}>{m.title}</span>
-              <span className="text-xs text-black/40 dark:text-white/40">{m.dueDate}</span>
+              <span className="text-xs text-black/40 dark:text-white/40">{formatDateOnly(m.dueDate)}</span>
               <button
                 onClick={() => removeMilestone(task.id, m.id)}
                 className="text-black/30 hover:text-rose-600 dark:text-white/30 dark:hover:text-rose-400"
