@@ -7,8 +7,6 @@ import {
   type Task,
   type TaskStatus,
   type User,
-  CURRENT_SCHEMA_VERSION,
-  createEmptyState,
 } from '../types'
 import { createId } from '../lib/id'
 import { addWeeksToDateOnly, nowTimestamp, today } from '../lib/dates'
@@ -79,7 +77,6 @@ interface AppStore extends AppState {
 
   exportJSON: () => string
   importJSON: (json: string) => { ok: true } | { ok: false; error: string }
-  resetToSeed: () => void
 
   setLastDigestAt: (timestamp: string) => void
 }
@@ -461,13 +458,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return { ok: true }
   },
 
-  resetToSeed: () => {
-    const seeded = seedState()
-    const next = { ...get(), ...seeded }
-    set(next)
-    persist(seeded)
-  },
-
   setLastDigestAt: (timestamp) => {
     const state = get()
     const settings = { ...state.settings, lastDigestAt: timestamp }
@@ -480,11 +470,3 @@ export const useAppStore = create<AppStore>((set, get) => ({
 localStorageAdapter.setSaveFailureListener(() => {
   useAppStore.setState({ saveError: true })
 })
-
-export function getSchemaVersion() {
-  return CURRENT_SCHEMA_VERSION
-}
-
-export function emptyAppState() {
-  return createEmptyState()
-}
