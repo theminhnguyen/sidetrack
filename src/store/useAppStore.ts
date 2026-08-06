@@ -9,7 +9,7 @@ import {
   type User,
 } from '../types'
 import { createId } from '../lib/id'
-import { addWeeksToDateOnly, isAfterDateOnly, nowTimestamp, today } from '../lib/dates'
+import { addWeeksToDateOnly, isAfterDateOnly, isBeforeDateOnly, nowTimestamp, today } from '../lib/dates'
 import { localStorageAdapter } from '../storage/localStorageAdapter'
 import { migrate } from '../storage/StorageAdapter'
 import { seedState } from '../data/seed'
@@ -223,6 +223,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   addTask: (input) => {
     const state = get()
     const now = nowTimestamp()
+    const dueDate = input.dueDate ?? today()
+    // The new-task form has no start-date field, so it always defaults here.
+    // Defaulting unconditionally to today() would put the start after the due
+    // date for any task backfilled with a past deadline — an inverted range
+    // that crashes the Gantt view (frappe-gantt assumes start <= end).
+    const startDate = input.startDate ?? (isBeforeDateOnly(dueDate, today()) ? dueDate : today())
     const task: Task = {
       id: createId('t'),
       title: input.title,
@@ -231,8 +237,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       size: input.size ?? 'M',
       status: 'todo',
       assigneeId: input.assigneeId,
-      startDate: input.startDate ?? today(),
-      dueDate: input.dueDate ?? today(),
+      startDate,
+      dueDate,
       completedAt: null,
       milestones: [],
       dependsOn: input.dependsOn ?? [],
@@ -403,9 +409,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // snoozeCount drives the "this keeps slipping" badge, so only a later date
     // counts — pulling a deadline forward is the opposite of a slip.
     const slipped = isAfterDateOnly(newDate, task.dueDate)
+    // A due date pulled earlier than the task's own start would invert the
+    // range and crash the Gantt view (frappe-gantt assumes start <= end) —
+    // bring the start along with it instead of letting that happen.
+    const startDate = isBeforeDateOnly(newDate, task.startDate) ? newDate : task.startDate
     const tasks = state.tasks.map((t) =>
       t.id === id
-        ? { ...t, dueDate: newDate, snoozeCount: slipped ? t.snoozeCount + 1 : t.snoozeCount, updatedAt: nowTimestamp() }
+        ? {
+            ...t,
+            startDate,
+            dueDate: newDate,
+            snoozeCount: slipped ? t.snoozeCount + 1 : t.snoozeCount,
+            updatedAt: nowTimestamp(),
+          }
         : t,
     )
     const auditLog = [...state.auditLog]
@@ -426,8 +442,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const task = state.tasks.find((t) => t.id === id)
     if (!task || task.startDate === newDate) return
 
+    // A start dragged past the task's own due date would invert the range and
+    // crash the Gantt view — bring the due date along with it instead.
+    const dueDate = isAfterDateOnly(newDate, task.dueDate) ? newDate : task.dueDate
     const tasks = state.tasks.map((t) =>
-      t.id === id ? { ...t, startDate: newDate, updatedAt: nowTimestamp() } : t,
+      t.id === id ? { ...t, startDate: newDate, dueDate, updatedAt: nowTimestamp() } : t,
     )
     const auditLog = [...state.auditLog]
     logEvent(auditLog, id, state.currentUserId, 'deadline_shifted', {

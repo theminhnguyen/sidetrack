@@ -1,5 +1,6 @@
 import type { Task, User } from '../types'
 import { isConflicted } from './dependencyGraph'
+import { isOverdue } from './dates'
 import { AVATAR_PALETTE } from '../store/useAppStore'
 
 export interface GanttFilters {
@@ -61,6 +62,7 @@ export function buildGanttRows(tasks: Task[], users: User[], filters: GanttFilte
     let statusFlag = 'normal'
     if (task.status === 'done') statusFlag = 'done'
     else if (task.status === 'blocked') statusFlag = 'blocked'
+    else if (isOverdue(task.dueDate)) statusFlag = 'overdue'
     else if (isConflicted(task, tasksById)) statusFlag = 'conflict'
     const assigneeSlot = assignee ? `assignee-${paletteIndex(assignee.color)}` : 'assignee-none'
 

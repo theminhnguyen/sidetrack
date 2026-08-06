@@ -1,4 +1,4 @@
-import { addDays, addWeeks, format, subDays } from 'date-fns'
+import { addDays, addWeeks, differenceInCalendarDays, format, subDays } from 'date-fns'
 import type { DateOnly } from '../types'
 
 /**
@@ -44,6 +44,11 @@ export function isAfterDateOnly(a: DateOnly, b: DateOnly): boolean {
 
 export function isOverdue(dueDate: DateOnly): boolean {
   return isBeforeDateOnly(dueDate, today())
+}
+
+/** How many days late `dueDate` is. Only meaningful when `isOverdue` is true. */
+export function daysOverdue(dueDate: DateOnly): number {
+  return differenceInCalendarDays(parseDateOnly(today()), parseDateOnly(dueDate))
 }
 
 export function formatDateOnly(date: DateOnly): string {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from './useAppStore'
 import { readTestStorage, resetTestStorage } from '../test/setup'
 
@@ -114,6 +114,65 @@ describe('shiftStartDate', () => {
     const before = useAppStore.getState().auditLog.length
     useAppStore.getState().shiftStartDate(id, '2026-08-01', 'No change')
     expect(useAppStore.getState().auditLog.length).toBe(before)
+  })
+
+  it('pulls the due date along rather than inverting the range', () => {
+    // Both dates start equal (freshTask), so any later start date would
+    // otherwise leave startDate > dueDate — the state that crashes the Gantt.
+    const id = freshTask('2026-08-01')
+    useAppStore.getState().shiftStartDate(id, '2026-08-10', 'Started later')
+    const task = useAppStore.getState().tasks.find((t) => t.id === id)
+    expect(task?.startDate).toBe('2026-08-10')
+    expect(task?.dueDate).toBe('2026-08-10')
+  })
+})
+
+describe('shiftDueDate — range invariant', () => {
+  it('pulls the start date along rather than inverting the range', () => {
+    const id = freshTask('2026-08-15')
+    useAppStore.getState().shiftDueDate(id, '2026-08-01', 'Pulled forward', 'manual')
+    const task = useAppStore.getState().tasks.find((t) => t.id === id)
+    expect(task?.dueDate).toBe('2026-08-01')
+    expect(task?.startDate).toBe('2026-08-01')
+  })
+
+  it('leaves the start date alone when the range stays valid', () => {
+    const task = useAppStore.getState().addTask({
+      title: 'T',
+      assigneeId: null,
+      startDate: '2026-08-01',
+      dueDate: '2026-08-20',
+    })
+    useAppStore.getState().shiftDueDate(task.id, '2026-08-10', 'Pulled forward a bit', 'manual')
+    const updated = useAppStore.getState().tasks.find((t) => t.id === task.id)
+    expect(updated?.dueDate).toBe('2026-08-10')
+    expect(updated?.startDate).toBe('2026-08-01')
+  })
+})
+
+describe('addTask — default start date', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not default the start date to today when the due date is already in the past', () => {
+    // Regression: the new-task form has no start-date field, so it always
+    // relies on this default. A backfilled task with a past due date used to
+    // get startDate = today() unconditionally, inverting the range and
+    // crashing the Gantt view the moment it was opened.
+    const task = useAppStore.getState().addTask({ title: 'Backfilled', assigneeId: null, dueDate: '2026-07-20' })
+    expect(task.startDate).toBe('2026-07-20')
+    expect(task.dueDate).toBe('2026-07-20')
+  })
+
+  it('still defaults to today when the due date is today or later', () => {
+    const task = useAppStore.getState().addTask({ title: 'Future', assigneeId: null, dueDate: '2026-08-20' })
+    expect(task.startDate).toBe('2026-08-10')
+    expect(task.dueDate).toBe('2026-08-20')
   })
 })
 

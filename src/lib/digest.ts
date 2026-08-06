@@ -1,5 +1,5 @@
 import type { AppState, AuditLogEntry, Task, User } from '../types'
-import { formatDateOnly, formatTimestamp, timestampDaysAgo } from './dates'
+import { daysOverdue, formatDateOnly, formatTimestamp, isOverdue, timestampDaysAgo } from './dates'
 
 export interface ShiftedEntry {
   task: Task
@@ -17,6 +17,8 @@ export interface Digest {
   isFirstEver: boolean
   sinceTimestamp: string
   newlyDone: Task[]
+  /** Not done and past their due date as of right now — a standing count, not a delta since the baseline. */
+  overdue: Task[]
   blocked: BlockedEntry[]
   shifted: ShiftedEntry[]
   capacity: User[]
@@ -60,6 +62,8 @@ export function buildDigest(state: AppState): Digest {
 
   const newlyDone = state.tasks.filter((t) => t.completedAt !== null && t.completedAt > sinceTimestamp)
 
+  const overdue = state.tasks.filter((t) => t.status !== 'done' && isOverdue(t.dueDate))
+
   const blocked: BlockedEntry[] = state.tasks
     .filter((t) => t.status === 'blocked')
     .map((task) => ({ task, since: blockedSince(task, state.auditLog) }))
@@ -74,7 +78,7 @@ export function buildDigest(state: AppState): Digest {
 
   const capacity = state.users.filter((u) => u.active)
 
-  return { isFirstEver, sinceTimestamp, newlyDone, blocked, shifted, capacity }
+  return { isFirstEver, sinceTimestamp, newlyDone, overdue, blocked, shifted, capacity }
 }
 
 const CAPACITY_ICON: Record<string, string> = { green: '🟢', yellow: '🟡', red: '🔴' }
@@ -87,12 +91,22 @@ export function formatDigestText(digest: Digest): string {
   lines.push(digest.isFirstEver ? '_First report — showing the last 7 days_' : `_Since ${formatTimestamp(digest.sinceTimestamp)}_`)
   lines.push('')
 
-  const hasChanges = digest.newlyDone.length > 0 || digest.blocked.length > 0 || digest.shifted.length > 0
+  const hasChanges =
+    digest.newlyDone.length > 0 || digest.overdue.length > 0 || digest.blocked.length > 0 || digest.shifted.length > 0
 
   if (!hasChanges) {
     lines.push(`No changes since ${formatTimestamp(digest.sinceTimestamp)}.`)
     lines.push('')
   } else {
+    if (digest.overdue.length > 0) {
+      lines.push(`⚠️ Overdue (${digest.overdue.length})`)
+      for (const t of digest.overdue) {
+        const days = daysOverdue(t.dueDate)
+        lines.push(`- ${t.title} — due ${formatDateOnly(t.dueDate)} (${days} day${days === 1 ? '' : 's'} late)`)
+      }
+      lines.push('')
+    }
+
     if (digest.newlyDone.length > 0) {
       lines.push(`✅ Newly done (${digest.newlyDone.length})`)
       for (const t of digest.newlyDone) lines.push(`- ${t.title}`)

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { buildDigest } from './digest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildDigest, formatDigestText } from './digest'
 import { createEmptyState } from '../types'
 import { makeAuditEntry, makeTask, makeUser } from './testFactory'
 
@@ -80,6 +80,46 @@ describe('buildDigest — shifted', () => {
     })
     const digest = buildDigest(stateWith({ tasks: [task], auditLog: [oldShift] }))
     expect(digest.shifted).toEqual([])
+  })
+})
+
+describe('buildDigest — overdue', () => {
+  // isOverdue reads the real clock, so it's pinned here — otherwise this
+  // suite would silently start failing (or passing for the wrong reason)
+  // as the calendar moves past the hardcoded task dates below.
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('lists not-done tasks whose due date has already passed', () => {
+    const task = makeTask({ status: 'in_progress', dueDate: '2026-08-01' })
+    const digest = buildDigest(stateWith({ tasks: [task] }))
+    expect(digest.overdue).toEqual([task])
+  })
+
+  it('excludes done tasks even if their due date has passed', () => {
+    const task = makeTask({ status: 'done', dueDate: '2026-08-01', completedAt: AFTER_SINCE })
+    const digest = buildDigest(stateWith({ tasks: [task] }))
+    expect(digest.overdue).toEqual([])
+  })
+
+  it('excludes tasks whose due date is still ahead', () => {
+    const task = makeTask({ status: 'in_progress', dueDate: '2026-08-20' })
+    const digest = buildDigest(stateWith({ tasks: [task] }))
+    expect(digest.overdue).toEqual([])
+  })
+
+  it('reports the correct singular/plural day count in the rendered text', () => {
+    const oneDay = makeTask({ title: 'A', status: 'in_progress', dueDate: '2026-08-09' })
+    const fiveDays = makeTask({ title: 'B', status: 'in_progress', dueDate: '2026-08-05' })
+    const text = formatDigestText(buildDigest(stateWith({ tasks: [oneDay, fiveDays] })))
+    expect(text).toContain('⚠️ Overdue (2)')
+    expect(text).toContain('- A — due Aug 9 (1 day late)')
+    expect(text).toContain('- B — due Aug 5 (5 days late)')
   })
 })
 

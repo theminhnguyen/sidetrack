@@ -42,15 +42,29 @@ body {
 
 [class*="status-done"] { opacity: 0.45; }
 
+/*
+ * !important on stroke/-width here for the same reason the assignee fill
+ * colors above need it: frappe-gantt's own `.gantt .bar-wrapper .bar` rule
+ * (3 class-level selectors) outranks this attribute-selector rule (2) in
+ * specificity, so without it these colors are silently overridden and only
+ * stroke-dasharray (which frappe-gantt never sets) visibly applies.
+ */
 [class*="status-blocked"] .bar {
-  stroke: #ef4444;
-  stroke-width: 2px;
+  stroke: #ef4444 !important;
+  stroke-width: 2px !important;
   stroke-dasharray: 5 3;
 }
 
+/* Solid (not dashed) so it reads distinctly from "blocked" — this is a date
+   fact, not an explicitly logged blocker. */
+[class*="status-overdue"] .bar {
+  stroke: #ef4444 !important;
+  stroke-width: 2px !important;
+}
+
 [class*="status-conflict"] .bar {
-  stroke: #f59e0b;
-  stroke-width: 2.5px;
+  stroke: #f59e0b !important;
+  stroke-width: 2.5px !important;
 }
 
 [class*="gantt-milestone"] .bar {
