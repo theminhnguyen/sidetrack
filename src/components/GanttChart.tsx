@@ -57,6 +57,8 @@ export function GanttChart({
   const [viewMode, setViewMode] = useState<ViewMode>('Week')
   const [dragChange, setDragChange] = useState<DragChange | null>(null)
   const [dragReason, setDragReason] = useState('')
+  const [introPlaying, setIntroPlaying] = useState(false)
+  const hasIntroedRef = useRef(false)
 
   const filters: GanttFilters = useMemo(() => ({ assigneeId, hideDone }), [assigneeId, hideDone])
   const rows = useMemo(() => buildGanttRows(tasks, users, filters), [tasks, users, filters])
@@ -117,6 +119,17 @@ export function GanttChart({
     if (visible && ganttRef.current) ganttRef.current.change_view_mode(viewMode)
   }, [visible, viewMode])
 
+  // Bars fly in the first time the chart is actually shown — once per session,
+  // not on every tab switch, and dropped again afterwards so later refreshes
+  // (filters, drags) update the chart without re-animating the whole timeline.
+  useEffect(() => {
+    if (!visible || hasIntroedRef.current) return
+    hasIntroedRef.current = true
+    setIntroPlaying(true)
+    const timer = setTimeout(() => setIntroPlaying(false), 1000)
+    return () => clearTimeout(timer)
+  }, [visible])
+
   function cancelDragChange() {
     setDragChange(null)
     setDragReason('')
@@ -174,11 +187,19 @@ export function GanttChart({
         </div>
       </div>
 
-      <div className={rows.length === 0 ? 'hidden' : 'gantt-shell overflow-x-auto rounded-lg border border-black/10 dark:border-white/10'}>
+      <div
+        className={
+          rows.length === 0
+            ? 'hidden'
+            : `gantt-shell overflow-x-auto rounded-lg border border-black/10 dark:border-white/10 ${
+                introPlaying ? 'st-gantt-intro' : ''
+              }`
+        }
+      >
         <div ref={containerRef} />
       </div>
       {rows.length === 0 && (
-        <p className="rounded-lg border border-dashed border-black/10 px-3 py-10 text-center text-sm text-black/40 dark:border-white/10 dark:text-white/40">
+        <p className="st-fade rounded-lg border border-dashed border-black/10 px-3 py-10 text-center text-sm text-black/40 dark:border-white/10 dark:text-white/40">
           No tasks match these filters.
         </p>
       )}

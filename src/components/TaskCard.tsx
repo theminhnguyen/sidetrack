@@ -1,20 +1,42 @@
-import type { Task, User } from '../types'
+import { useEffect, useRef, useState } from 'react'
+import type { Task, TaskStatus, User } from '../types'
 import { formatDateOnly, isOverdue } from '../lib/dates'
 import { Avatar, CapacityDot } from './Avatar'
 import { SnoozeButtons } from './SnoozeButton'
+
+const FLASH_RING: Record<TaskStatus, string> = {
+  todo: 'rgba(124, 92, 255, 0.5)',
+  in_progress: 'rgba(14, 165, 233, 0.5)',
+  blocked: 'rgba(244, 63, 94, 0.5)',
+  done: 'rgba(34, 197, 94, 0.55)',
+}
 
 export function TaskCard({
   task,
   assignee,
   conflicted,
+  index = 0,
   onClick,
 }: {
   task: Task
   assignee: User | undefined
   conflicted: boolean
+  /** Position in its column — drives the staggered entrance. */
+  index?: number
   onClick: () => void
 }) {
   const overdue = task.status !== 'done' && isOverdue(task.dueDate)
+
+  // Bumping a counter (rather than toggling a class) remounts the ring overlay,
+  // which is what actually restarts a CSS animation that already ran.
+  const [flash, setFlash] = useState(0)
+  const prevStatus = useRef(task.status)
+  useEffect(() => {
+    if (prevStatus.current !== task.status) {
+      prevStatus.current = task.status
+      setFlash((n) => n + 1)
+    }
+  }, [task.status])
 
   return (
     <div
@@ -27,12 +49,22 @@ export function TaskCard({
           onClick()
         }
       }}
-      className={`w-full cursor-pointer rounded-lg border px-4 py-3 text-left hover:border-black/25 hover:bg-black/[0.04] dark:hover:border-white/25 dark:hover:bg-white/[0.06] ${
+      style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
+      className={`st-rise relative w-full cursor-pointer rounded-lg border px-4 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-black/25 hover:bg-black/[0.04] hover:shadow-lg dark:hover:border-white/25 dark:hover:bg-white/[0.06] ${
         conflicted
           ? 'border-amber-500/40 bg-amber-500/[0.07]'
           : 'border-black/10 bg-black/[0.015] dark:border-white/10 dark:bg-white/[0.03]'
       }`}
     >
+      {flash > 0 && (
+        <span
+          key={flash}
+          aria-hidden="true"
+          className="st-flash pointer-events-none absolute inset-0 rounded-lg"
+          style={{ ['--st-ring' as string]: FLASH_RING[task.status] }}
+        />
+      )}
+
       <div className="flex items-start justify-between gap-3">
         <span className="font-medium leading-snug">{task.title}</span>
         <span className="shrink-0 rounded border border-black/15 px-1.5 py-0.5 text-[11px] text-black/60 dark:border-white/15 dark:text-white/60">
@@ -47,11 +79,12 @@ export function TaskCard({
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-300/90">⚠️ Depends on a task that finishes later than this one</p>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs text-black/50 dark:text-white/50">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-black/50 dark:text-white/50">
           {assignee ? (
-            <span className="flex items-center gap-1.5">
+            <span className="flex min-w-0 items-center gap-1.5">
               <Avatar user={assignee} size="sm" />
+              <span className="truncate text-black/70 dark:text-white/70">{assignee.name}</span>
               <CapacityDot status={assignee.capacity.status} />
             </span>
           ) : (

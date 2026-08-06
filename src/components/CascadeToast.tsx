@@ -9,7 +9,7 @@ export function CascadeToast() {
   if (!suggestion) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-80 rounded-lg border border-amber-500/40 bg-white p-4 text-black shadow-2xl dark:border-amber-500/30 dark:bg-[#1a1a26] dark:text-white">
+    <div className="st-toast fixed bottom-6 right-6 z-50 w-80 rounded-lg border border-amber-500/40 bg-white p-4 text-black shadow-2xl dark:border-amber-500/30 dark:bg-[#1a1a26] dark:text-white">
       <p className="text-sm">
         Moving <strong>{suggestion.rootTitle}</strong> puts {suggestion.plan.length} dependent{' '}
         {suggestion.plan.length === 1 ? 'task' : 'tasks'} in conflict.

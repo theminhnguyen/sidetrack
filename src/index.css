@@ -64,3 +64,116 @@ body {
 .gantt-shell .gantt-container {
   width: 100%;
 }
+
+/* ============================================================
+   Motion
+   Every animation here is opt-in via a class, so nothing moves
+   unless a component asks for it. The whole block is disabled
+   under prefers-reduced-motion at the bottom of this file.
+   ============================================================ */
+
+@keyframes st-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes st-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes st-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes st-slide-left {
+  from { opacity: 0; transform: translateX(32px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes st-toast {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.st-rise       { animation: st-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.st-fade       { animation: st-fade 0.2s ease-out both; }
+.st-pop        { animation: st-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.st-slide-left { animation: st-slide-left 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.st-toast      { animation: st-toast 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Ring that flashes outward once — marks a card whose status just changed. */
+@keyframes st-flash {
+  0%   { box-shadow: 0 0 0 0 var(--st-ring, rgba(124, 92, 255, 0.5)); }
+  100% { box-shadow: 0 0 0 12px rgba(0, 0, 0, 0); }
+}
+.st-flash { animation: st-flash 0.75s ease-out; }
+
+/* Slow heartbeat on a teammate's capacity dot — only amber/red opt in. */
+@keyframes st-dot-pulse {
+  0%   { box-shadow: 0 0 0 0 var(--st-ring, rgba(0, 0, 0, 0.4)); }
+  70%  { box-shadow: 0 0 0 5px rgba(0, 0, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+}
+.st-dot-pulse { animation: st-dot-pulse 2.2s ease-out infinite; }
+
+/*
+ * Gantt bars fly in from the left on first reveal. Deliberately transform-only:
+ * animating opacity would fight the `[class*="status-done"] { opacity: .45 }`
+ * rule above and leave finished bars at full strength once the animation ends.
+ */
+@keyframes st-gantt-in {
+  from { transform: translateX(-22px); }
+  to   { transform: none; }
+}
+.gantt-shell.st-gantt-intro .bar-wrapper {
+  animation: st-gantt-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(1)  { animation-delay: 0.00s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(2)  { animation-delay: 0.04s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(3)  { animation-delay: 0.08s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(4)  { animation-delay: 0.12s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(5)  { animation-delay: 0.16s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(6)  { animation-delay: 0.20s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(7)  { animation-delay: 0.24s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(8)  { animation-delay: 0.28s; }
+.gantt-shell.st-gantt-intro .bar-wrapper:nth-child(n + 9) { animation-delay: 0.32s; }
+
+/* Confetti burst when a task is marked done. */
+@keyframes st-confetti {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--st-dx, 0), 105vh, 0) rotate(var(--st-rot, 540deg)); opacity: 0; }
+}
+.st-confetti-piece {
+  position: absolute;
+  top: -14px;
+  width: 8px;
+  height: 12px;
+  border-radius: 1px;
+  animation: st-confetti var(--st-dur, 2s) cubic-bezier(0.3, 0.5, 0.6, 1) forwards;
+}
+
+/* Buttons get a light press response across the app. */
+button {
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-rise,
+  .st-fade,
+  .st-pop,
+  .st-slide-left,
+  .st-toast,
+  .st-flash,
+  .st-dot-pulse,
+  .st-confetti-piece,
+  .gantt-shell.st-gantt-intro .bar-wrapper {
+    animation: none !important;
+  }
+  button {
+    transition: none;
+  }
+  button:active:not(:disabled) {
+    transform: none;
+  }
+}

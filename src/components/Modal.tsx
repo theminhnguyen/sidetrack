@@ -17,9 +17,9 @@ export function Modal({ title, onClose, children, wide }: ModalProps) {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
+    <div className="st-fade fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
       <div
-        className={`w-full rounded-xl border border-black/10 bg-white p-6 shadow-2xl dark:border-white/15 dark:bg-[#14141f] ${wide ? 'max-w-2xl' : 'max-w-md'}`}
+        className={`st-pop w-full rounded-xl border border-black/10 bg-white p-6 shadow-2xl dark:border-white/15 dark:bg-[#14141f] ${wide ? 'max-w-2xl' : 'max-w-md'}`}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">{title}</h2>

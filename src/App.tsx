@@ -6,6 +6,7 @@ import { TaskBoard } from './components/TaskBoard'
 import { TaskDetailDrawer } from './components/TaskDetailDrawer'
 import { NewTaskModal } from './components/NewTaskModal'
 import { CascadeToast } from './components/CascadeToast'
+import { Confetti } from './components/Confetti'
 import { ThemeToggle } from './components/ThemeToggle'
 import { GanttChart } from './components/GanttChart'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -125,7 +126,7 @@ export default function App() {
       </header>
 
       {saveError && (
-        <div className="mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
+        <div className="st-rise mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
           Couldn't save to this browser's storage. Export a backup so you don't lose changes.
           <button className="ml-3 underline" onClick={dismissSaveError}>
             Dismiss
@@ -134,7 +135,7 @@ export default function App() {
       )}
 
       {pptxError && (
-        <div className="mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
+        <div className="st-rise mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
           {pptxError}
           <button className="ml-3 underline" onClick={() => setPptxError(null)}>
             Dismiss
@@ -143,7 +144,7 @@ export default function App() {
       )}
 
       {importMessage && (
-        <div className="mb-6 rounded-md border border-black/15 bg-black/[0.03] px-4 py-2 text-sm dark:border-white/15 dark:bg-white/5">
+        <div className="st-rise mb-6 rounded-md border border-black/15 bg-black/[0.03] px-4 py-2 text-sm dark:border-white/15 dark:bg-white/5">
           {importMessage}
           <button className="ml-3 underline" onClick={() => setImportMessage(null)}>
             Dismiss
@@ -218,6 +219,7 @@ export default function App() {
       {isDigestOpen && <DigestModal onClose={() => setIsDigestOpen(false)} />}
 
       <CascadeToast />
+      <Confetti />
     </div>
   )
 }

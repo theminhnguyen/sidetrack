@@ -41,11 +41,14 @@ interface AppStore extends AppState {
   currentUserId: string | null
   saveError: boolean
   cascadeSuggestion: CascadeSuggestion | null
+  /** Set when a task crosses into `done`, so the UI can celebrate it once. */
+  celebration: { taskId: string; at: number } | null
 
   setCurrentUser: (userId: string | null) => void
   dismissSaveError: () => void
   dismissCascadeSuggestion: () => void
   confirmCascadeSuggestion: () => void
+  clearCelebration: () => void
 
   addUser: (name: string) => User
   renameUser: (id: string, name: string) => void
@@ -84,9 +87,10 @@ interface AppStore extends AppState {
 
 /**
  * Persist only the AppState slice. `get()` also carries session-only fields
- * (currentUserId, saveError, cascadeSuggestion) and the action functions, none
- * of which belong in storage — a persisted `saveError: true` or a stale cascade
- * suggestion would otherwise be one reordered line away from resurfacing on load.
+ * (currentUserId, saveError, cascadeSuggestion, celebration) and the action
+ * functions, none of which belong in storage — a persisted `saveError: true`,
+ * a stale cascade suggestion, or a replayed celebration would otherwise be one
+ * reordered line away from resurfacing on load.
  */
 function persist(state: AppState) {
   localStorageAdapter.save({
@@ -139,10 +143,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   currentUserId: null,
   saveError: false,
   cascadeSuggestion: null,
+  celebration: null,
 
   setCurrentUser: (userId) => set({ currentUserId: userId }),
   dismissSaveError: () => set({ saveError: false }),
   dismissCascadeSuggestion: () => set({ cascadeSuggestion: null }),
+  clearCelebration: () => set({ celebration: null }),
   confirmCascadeSuggestion: () => {
     const suggestion = get().cascadeSuggestion
     if (!suggestion) return
@@ -281,7 +287,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       to: status,
       reason: reason ?? null,
     })
-    const next = { ...state, tasks, auditLog }
+    // Only a genuine crossing into `done` celebrates — re-applying `done` to an
+    // already-finished task shouldn't fire confetti a second time.
+    const justCompleted = status === 'done' && task.status !== 'done'
+    const next = {
+      ...state,
+      tasks,
+      auditLog,
+      celebration: justCompleted ? { taskId: id, at: Date.now() } : state.celebration,
+    }
     set(next)
     persist(next)
   },

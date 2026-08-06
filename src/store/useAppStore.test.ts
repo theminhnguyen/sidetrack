@@ -66,6 +66,35 @@ describe('setTaskStatus — completedAt lifecycle', () => {
   })
 })
 
+describe('setTaskStatus — celebration signal', () => {
+  it('fires once when a task first crosses into done', () => {
+    const id = freshTask('2026-08-01')
+    useAppStore.getState().clearCelebration()
+
+    useAppStore.getState().setTaskStatus(id, 'done')
+    expect(useAppStore.getState().celebration?.taskId).toBe(id)
+  })
+
+  it('does not re-fire when done is re-applied to an already-done task', () => {
+    const id = freshTask('2026-08-01')
+    useAppStore.getState().setTaskStatus(id, 'done')
+    useAppStore.getState().clearCelebration()
+
+    useAppStore.getState().setTaskStatus(id, 'done')
+    expect(useAppStore.getState().celebration).toBeNull()
+  })
+
+  it('fires again after a task is reopened and completed a second time', () => {
+    const id = freshTask('2026-08-01')
+    useAppStore.getState().setTaskStatus(id, 'done')
+    useAppStore.getState().setTaskStatus(id, 'in_progress')
+    useAppStore.getState().clearCelebration()
+
+    useAppStore.getState().setTaskStatus(id, 'done')
+    expect(useAppStore.getState().celebration?.taskId).toBe(id)
+  })
+})
+
 describe('shiftStartDate', () => {
   it('writes an audit entry so Gantt drags of the bar start are traceable', () => {
     const id = freshTask('2026-08-01')

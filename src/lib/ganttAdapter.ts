@@ -50,7 +50,9 @@ export function buildGanttRows(tasks: Task[], users: User[], filters: GanttFilte
   for (const task of sorted) {
     const assignee = task.assigneeId ? usersById.get(task.assigneeId) : undefined
     const icon = assignee ? CAPACITY_ICON[assignee.capacity.status] ?? '⚪' : '⚪'
-    const label = `${icon} ${assignee?.initials ?? '—'} · ${task.title}`
+    // Full name, not initials: this label is also what gets rasterised into the
+    // PPTX timeline slide, where no hover tooltip can rescue an abbreviation.
+    const label = `${icon} ${assignee?.name ?? 'Unassigned'} · ${task.title}`
 
     // frappe-gantt does `classList.add(custom_class)` with the WHOLE string as
     // one token, so it must never contain spaces — encode every attribute we
