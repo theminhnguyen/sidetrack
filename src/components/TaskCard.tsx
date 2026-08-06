@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { Task, TaskStatus, User } from '../types'
 import { formatDateOnly, isOverdue } from '../lib/dates'
 import { Avatar, CapacityDot } from './Avatar'
@@ -11,11 +11,20 @@ const FLASH_RING: Record<TaskStatus, string> = {
   done: 'rgba(34, 197, 94, 0.55)',
 }
 
+/**
+ * How recently a task must have changed for its card to flash on arrival.
+ * A status change moves the card to a different column, which unmounts and
+ * remounts it — so there is no previous status left to compare against, and
+ * the freshness of `updatedAt` is what identifies a card that just moved.
+ */
+const FLASH_WINDOW_MS = 1500
+
 export function TaskCard({
   task,
   assignee,
   conflicted,
   index = 0,
+  allowFlash = false,
   onClick,
 }: {
   task: Task
@@ -23,20 +32,21 @@ export function TaskCard({
   conflicted: boolean
   /** Position in its column — drives the staggered entrance. */
   index?: number
+  /**
+   * False on the board's very first render. Seeded tasks are all stamped with
+   * the current time when the store initialises, so without this gate every
+   * card would flash at once on a first visit.
+   */
+  allowFlash?: boolean
   onClick: () => void
 }) {
   const overdue = task.status !== 'done' && isOverdue(task.dueDate)
 
-  // Bumping a counter (rather than toggling a class) remounts the ring overlay,
-  // which is what actually restarts a CSS animation that already ran.
-  const [flash, setFlash] = useState(0)
-  const prevStatus = useRef(task.status)
-  useEffect(() => {
-    if (prevStatus.current !== task.status) {
-      prevStatus.current = task.status
-      setFlash((n) => n + 1)
-    }
-  }, [task.status])
+  // Evaluated once per mount: a card that landed here moments ago gets the ring,
+  // one that was already sitting in this column does not.
+  const [flashOnArrival] = useState(
+    () => allowFlash && Date.now() - Date.parse(task.updatedAt) < FLASH_WINDOW_MS,
+  )
 
   return (
     <div
@@ -56,9 +66,8 @@ export function TaskCard({
           : 'border-black/10 bg-black/[0.015] dark:border-white/10 dark:bg-white/[0.03]'
       }`}
     >
-      {flash > 0 && (
+      {flashOnArrival && (
         <span
-          key={flash}
           aria-hidden="true"
           className="st-flash pointer-events-none absolute inset-0 rounded-lg"
           style={{ ['--st-ring' as string]: FLASH_RING[task.status] }}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { TaskStatus } from '../types'
 import { TaskCard } from './TaskCard'
@@ -17,6 +17,13 @@ export function TaskBoard({ onOpenTask }: { onOpenTask: (taskId: string) => void
   const users = useAppStore((s) => s.users)
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
+
+  // Cards may only flash once the board has painted at least once, so the
+  // initial set of cards arrives quietly and only later moves stand out.
+  const hasRenderedRef = useRef(false)
+  useEffect(() => {
+    hasRenderedRef.current = true
+  })
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -42,6 +49,7 @@ export function TaskBoard({ onOpenTask }: { onOpenTask: (taskId: string) => void
                   key={task.id}
                   task={task}
                   index={i}
+                  allowFlash={hasRenderedRef.current}
                   assignee={task.assigneeId ? usersById.get(task.assigneeId) : undefined}
                   conflicted={task.status !== 'done' && isConflicted(task, tasksById)}
                   onClick={() => onOpenTask(task.id)}
