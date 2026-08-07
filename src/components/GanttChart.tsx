@@ -100,6 +100,7 @@ export function GanttChart({
         setDragChange({ taskId: task.id, taskTitle: task.title, newStart, newEnd })
       },
     })
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [rows])
 
   // Keep an existing chart's data in sync with the store/filters. Skipped right

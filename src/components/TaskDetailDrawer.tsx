@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import type { TaskSize, TaskStatus } from '../types'
 import { Drawer } from './Drawer'
+import { Modal } from './Modal'
 import { DependencyPicker } from './DependencyPicker'
 import { AuditLog } from './AuditLog'
 import { SnoozeButtons } from './SnoozeButton'
@@ -24,6 +25,9 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const task = useAppStore((s) => s.tasks.find((t) => t.id === taskId))
   const users = useAppStore((s) => s.users)
   const allTasks = useAppStore((s) => s.tasks)
+  // Hoisted above the `!task` early return (hooks can't follow one) — same
+  // rebuilt-every-render Map that was already fixed in TaskBoard, see PLAN-V2.md P4.1.
+  const tasksById = useMemo(() => new Map(allTasks.map((t) => [t.id, t])), [allTasks])
   const auditLog = useAppStore((s) => s.auditLog)
   const updateTaskFields = useAppStore((s) => s.updateTaskFields)
   const setTaskStatus = useAppStore((s) => s.setTaskStatus)
@@ -48,6 +52,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const [newMilestoneTitle, setNewMilestoneTitle] = useState('')
   const [newMilestoneDate, setNewMilestoneDate] = useState(today())
   const [dependencyError, setDependencyError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   // Re-sync every draft when switching tasks, not on every store update —
   // otherwise an unrelated change (e.g. toggling a milestone) would clobber
@@ -65,6 +70,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
     setDueDateReason('')
     setBlockReason(null)
     setDependencyError(null)
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id])
 
   if (!task) {
@@ -99,7 +105,6 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const startDateChanged = draftStartDate !== task.startDate
   const startDatePushesDueDate = startDateChanged && isAfterDateOnly(draftStartDate, task.dueDate)
   const dueDateChanged = draftDueDate !== task.dueDate
-  const tasksById = new Map(allTasks.map((t) => [t.id, t]))
   const conflicted = isConflicted(task, tasksById)
   const dependents = getDirectDependents(allTasks, task.id)
 
@@ -384,20 +389,43 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
       </div>
 
       <button
-        onClick={() => {
-          const warning =
-            dependents.length > 0
-              ? `${dependents.length} task(s) depend on this one and will have the dependency removed. `
-              : ''
-          if (window.confirm(`${warning}Delete "${task.title}"? This cannot be undone.`)) {
-            deleteTask(task.id)
-            onClose()
-          }
-        }}
+        onClick={() => setConfirmingDelete(true)}
         className="mt-6 text-xs text-rose-600/80 hover:text-rose-700 dark:text-rose-400/80 dark:hover:text-rose-300"
       >
         Delete task
       </button>
+
+      {confirmingDelete && (
+        <Modal title="Delete this task?" onClose={() => setConfirmingDelete(false)}>
+          <p className="text-sm text-black/70 dark:text-white/70">
+            {dependents.length > 0 && (
+              <>
+                {dependents.length} task{dependents.length === 1 ? '' : 's'} depend{dependents.length === 1 ? 's' : ''}{' '}
+                on this one and will have the dependency removed.{' '}
+              </>
+            )}
+            Delete <strong>&quot;{task.title}&quot;</strong>? This can&apos;t be undone.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => {
+                deleteTask(task.id)
+                setConfirmingDelete(false)
+                onClose()
+              }}
+              className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-500/20 dark:text-rose-300"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      )}
     </Drawer>
   )
 }

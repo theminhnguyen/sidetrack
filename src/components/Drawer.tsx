@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
+import { useDialogA11y } from '../lib/useDialogA11y'
 
 interface DrawerProps {
   onClose: () => void
@@ -6,13 +7,8 @@ interface DrawerProps {
 }
 
 export function Drawer({ onClose, children }: DrawerProps) {
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  const containerRef = useRef<HTMLDivElement>(null)
+  useDialogA11y(containerRef, onClose)
 
   return (
     <div className="st-fade fixed inset-0 z-40 flex justify-end bg-black/60">
@@ -21,7 +17,17 @@ export function Drawer({ onClose, children }: DrawerProps) {
         className="absolute inset-0"
         aria-hidden="true"
       />
-      <div className="st-slide-left relative h-full w-full max-w-lg overflow-y-auto border-l border-black/10 bg-white p-6 text-black shadow-2xl dark:border-white/15 dark:bg-[#14141f] dark:text-white">
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        // Only one caller today (TaskDetailDrawer) — a generic Drawer has no
+        // title of its own to point aria-labelledby at, so a static label
+        // beats adding a prop nothing else would use.
+        aria-label="Task details"
+        tabIndex={-1}
+        className="st-slide-left relative h-full w-full max-w-lg overflow-y-auto border-l border-black/10 bg-white p-6 text-black shadow-2xl dark:border-white/15 dark:bg-[#14141f] dark:text-white"
+      >
         {children}
       </div>
     </div>

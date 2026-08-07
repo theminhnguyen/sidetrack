@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useId, useRef, type ReactNode } from 'react'
+import { useDialogA11y } from '../lib/useDialogA11y'
 
 interface ModalProps {
   title: string
@@ -8,21 +9,24 @@ interface ModalProps {
 }
 
 export function Modal({ title, onClose, children, wide }: ModalProps) {
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  const titleId = useId()
+  const containerRef = useRef<HTMLDivElement>(null)
+  useDialogA11y(containerRef, onClose)
 
   return (
     <div className="st-fade fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4">
       <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={`st-pop w-full rounded-xl border border-black/10 bg-white p-6 shadow-2xl dark:border-white/15 dark:bg-[#14141f] ${wide ? 'max-w-2xl' : 'max-w-md'}`}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <h2 id={titleId} className="text-lg font-semibold">
+            {title}
+          </h2>
           <button
             onClick={onClose}
             className="rounded-md p-1 text-black/50 hover:bg-black/5 hover:text-black dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
