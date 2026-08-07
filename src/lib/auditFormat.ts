@@ -48,7 +48,12 @@ export function formatAuditEntry(entry: AuditLogEntry, users: User[], task?: Tas
       const title = task?.milestones.find((m) => m.id === p.milestoneId)?.title ?? 'a milestone'
       const from = formatDateOnly(p.from as string)
       const to = formatDateOnly(p.to as string)
-      return `${who} moved milestone "${title}" from ${from} to ${to} — "${p.reason as string}"`
+      const reason = p.reason as string
+      // Reason is optional here (unlike a task's own deadline) — editing a
+      // milestone's date inline doesn't prompt for one, see PLAN-V2.md P2.2.
+      return reason
+        ? `${who} moved milestone "${title}" from ${from} to ${to} — "${reason}"`
+        : `${who} moved milestone "${title}" from ${from} to ${to}`
     }
 
     case 'assignee_changed': {

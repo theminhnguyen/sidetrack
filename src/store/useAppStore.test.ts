@@ -341,6 +341,33 @@ describe('addTask — default start date', () => {
   })
 })
 
+describe('shiftMilestone (PLAN-V2 P2.2)', () => {
+  it('writes an audit entry, even with an empty reason — inline editing does not prompt for one', () => {
+    const id = freshTask('2026-08-15')
+    useAppStore.getState().addMilestone(id, 'Draft ready', '2026-08-01')
+    const milestone = useAppStore.getState().tasks.find((t) => t.id === id)!.milestones[0]
+    const before = useAppStore.getState().auditLog.length
+
+    useAppStore.getState().shiftMilestone(id, milestone.id, '2026-08-05', '')
+
+    const updated = useAppStore.getState().tasks.find((t) => t.id === id)!.milestones[0]
+    expect(updated.dueDate).toBe('2026-08-05')
+    const added = useAppStore.getState().auditLog.slice(before)
+    expect(added.find((e) => e.type === 'milestone_shifted')).toBeDefined()
+  })
+
+  it('is a no-op when the date has not actually changed', () => {
+    const id = freshTask('2026-08-15')
+    useAppStore.getState().addMilestone(id, 'Draft ready', '2026-08-01')
+    const milestone = useAppStore.getState().tasks.find((t) => t.id === id)!.milestones[0]
+    const before = useAppStore.getState().auditLog.length
+
+    useAppStore.getState().shiftMilestone(id, milestone.id, '2026-08-01', '')
+
+    expect(useAppStore.getState().auditLog.length).toBe(before)
+  })
+})
+
 describe('persistence', () => {
   it('never writes session-only fields into storage', () => {
     useAppStore.getState().addUser('Alex Chen')

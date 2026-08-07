@@ -5,7 +5,7 @@ import { Drawer } from './Drawer'
 import { DependencyPicker } from './DependencyPicker'
 import { AuditLog } from './AuditLog'
 import { SnoozeButtons } from './SnoozeButton'
-import { formatDateOnly, today } from '../lib/dates'
+import { formatDateOnly, isAfterDateOnly, today } from '../lib/dates'
 import { findCycle, getDirectDependents, isConflicted } from '../lib/dependencyGraph'
 
 const SIZES: TaskSize[] = ['S', 'M', 'L', 'XL']
@@ -32,29 +32,39 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const deleteTask = useAppStore((s) => s.deleteTask)
   const addMilestone = useAppStore((s) => s.addMilestone)
   const toggleMilestone = useAppStore((s) => s.toggleMilestone)
+  const shiftMilestone = useAppStore((s) => s.shiftMilestone)
   const removeMilestone = useAppStore((s) => s.removeMilestone)
   const shiftDueDate = useAppStore((s) => s.shiftDueDate)
+  const shiftStartDate = useAppStore((s) => s.shiftStartDate)
 
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [deliverable, setDeliverable] = useState(task?.deliverable ?? '')
   const [blockReason, setBlockReason] = useState<string | null>(null)
+  const [draftStartDate, setDraftStartDate] = useState(task?.startDate ?? today())
+  const [startDateReason, setStartDateReason] = useState('')
   const [draftDueDate, setDraftDueDate] = useState(task?.dueDate ?? today())
   const [dueDateReason, setDueDateReason] = useState('')
   const [newMilestoneTitle, setNewMilestoneTitle] = useState('')
   const [newMilestoneDate, setNewMilestoneDate] = useState(today())
   const [dependencyError, setDependencyError] = useState<string | null>(null)
 
-  // Re-sync drafts only when switching tasks, not on every store update —
+  // Re-sync every draft when switching tasks, not on every store update —
   // otherwise an unrelated change (e.g. toggling a milestone) would clobber
-  // whatever the user is mid-typing in title/description/deliverable.
+  // whatever the user is mid-typing. Every piece of per-task draft state
+  // needs a line here, or it leaks into the next task the drawer opens on
+  // (see PLAN-V2.md P2.3 — dueDateReason and dependencyError used to be missed).
   useEffect(() => {
     if (!task) return
     setTitle(task.title)
     setDescription(task.description)
     setDeliverable(task.deliverable)
+    setDraftStartDate(task.startDate)
+    setStartDateReason('')
     setDraftDueDate(task.dueDate)
+    setDueDateReason('')
     setBlockReason(null)
+    setDependencyError(null)
   }, [task?.id])
 
   if (!task) {
@@ -86,6 +96,8 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
     setDependsOn(task.id, next)
   }
 
+  const startDateChanged = draftStartDate !== task.startDate
+  const startDatePushesDueDate = startDateChanged && isAfterDateOnly(draftStartDate, task.dueDate)
   const dueDateChanged = draftDueDate !== task.dueDate
   const tasksById = new Map(allTasks.map((t) => [t.id, t]))
   const conflicted = isConflicted(task, tasksById)
@@ -182,24 +194,70 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
             ))}
           </select>
         </div>
+      </div>
 
+      <div className="mt-3">
+        <label className={LABEL}>Size</label>
+        <div className="flex gap-1.5">
+          {SIZES.map((size) => (
+            <button
+              key={size}
+              onClick={() => updateTaskFields(task.id, { size })}
+              className={`flex-1 rounded-md border py-1 text-xs ${
+                task.size === size
+                  ? 'border-black/40 bg-black/5 dark:border-white/40 dark:bg-white/10'
+                  : 'border-black/10 hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5'
+              }`}
+            >
+              {size}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <div>
-          <label className={LABEL}>Size</label>
-          <div className="flex gap-1.5">
-            {SIZES.map((size) => (
-              <button
-                key={size}
-                onClick={() => updateTaskFields(task.id, { size })}
-                className={`flex-1 rounded-md border py-1 text-xs ${
-                  task.size === size
-                    ? 'border-black/40 bg-black/5 dark:border-white/40 dark:bg-white/10'
-                    : 'border-black/10 hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5'
-                }`}
-              >
-                {size}
-              </button>
-            ))}
-          </div>
+          <label className={LABEL}>Start date</label>
+          <input type="date" value={draftStartDate} onChange={(e) => setDraftStartDate(e.target.value)} className={INPUT} />
+          {startDateChanged && (
+            <div className="mt-2 rounded-md border border-black/15 bg-black/[0.03] p-2 dark:border-white/15 dark:bg-white/[0.04]">
+              {startDatePushesDueDate && (
+                <p className="mb-2 text-xs text-amber-700 dark:text-amber-300/90">
+                  That's after the current due date — the due date will move to {formatDateOnly(draftStartDate)} too,
+                  to keep the range valid.
+                </p>
+              )}
+              <label className={LABEL}>Reason for the change</label>
+              <input
+                autoFocus
+                value={startDateReason}
+                onChange={(e) => setStartDateReason(e.target.value)}
+                placeholder="e.g. Started earlier than planned"
+                className="w-full rounded-md border border-black/15 bg-black/[0.03] px-2 py-1 text-sm outline-none dark:border-white/15 dark:bg-black/30"
+              />
+              <div className="mt-2 flex gap-2">
+                <button
+                  disabled={!startDateReason.trim()}
+                  onClick={() => {
+                    shiftStartDate(task.id, draftStartDate, startDateReason.trim())
+                    setStartDateReason('')
+                  }}
+                  className="rounded-md border border-black/15 px-2 py-1 text-xs hover:bg-black/5 disabled:opacity-40 dark:border-white/15 dark:hover:bg-white/10"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setDraftStartDate(task.startDate)
+                    setStartDateReason('')
+                  }}
+                  className="rounded-md px-2 py-1 text-xs text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -262,7 +320,13 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
             <li key={m.id} className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={m.done} onChange={() => toggleMilestone(task.id, m.id)} className="h-3.5 w-3.5" />
               <span className={m.done ? 'flex-1 text-black/40 line-through dark:text-white/40' : 'flex-1'}>{m.title}</span>
-              <span className="text-xs text-black/40 dark:text-white/40">{formatDateOnly(m.dueDate)}</span>
+              <input
+                type="date"
+                value={m.dueDate}
+                onChange={(e) => e.target.value && shiftMilestone(task.id, m.id, e.target.value, '')}
+                aria-label={`Due date for milestone ${m.title}`}
+                className="rounded border border-transparent bg-transparent px-1 text-xs text-black/40 outline-none hover:border-black/15 focus:border-black/30 dark:text-white/40 dark:hover:border-white/15 dark:focus:border-white/30"
+              />
               <button
                 onClick={() => removeMilestone(task.id, m.id)}
                 className="text-black/30 hover:text-rose-600 dark:text-white/30 dark:hover:text-rose-400"

@@ -414,7 +414,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const state = get()
     const task = state.tasks.find((t) => t.id === taskId)
     const milestone = task?.milestones.find((m) => m.id === milestoneId)
-    if (!task || !milestone) return
+    if (!task || !milestone || milestone.dueDate === newDate) return
 
     const tasks = state.tasks.map((t) => {
       if (t.id !== taskId) return t
