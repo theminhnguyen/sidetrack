@@ -12,20 +12,25 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # false, not true: actions/deploy-pages only polls a deployment it already
+  # created — cancelling that poller doesn't cancel the deployment itself,
+  # which keeps running server-side and then rejects the next run with
+  # "due to in progress deployment" (see PLAN-V2.md P5.1). Queueing instead
+  # of cancelling is correct for a publish step.
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -37,4 +42,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
