@@ -1,5 +1,5 @@
 import type { AppState, AuditLogEntry, Task, User } from '../types'
-import { daysOverdue, formatDateOnly, formatTimestamp, isOverdue, timestampDaysAgo } from './dates'
+import { daysOverdue, daysSince, formatDateOnly, formatTimestamp, isCapacityStale, isOverdue, timestampDaysAgo } from './dates'
 
 export interface ShiftedEntry {
   task: Task
@@ -135,7 +135,10 @@ export function formatDigestText(digest: Digest): string {
   for (const u of digest.capacity) {
     const icon = CAPACITY_ICON[u.capacity.status] ?? '⚪'
     const note = u.capacity.note ? ` — ${u.capacity.note}` : ''
-    lines.push(`- ${icon} ${u.name}${note}`)
+    // This report is what the team actually reads, so an unconfirmed light
+    // is flagged rather than presented as current fact.
+    const age = isCapacityStale(u.capacity.updatedAt) ? ` _(unchanged for ${daysSince(u.capacity.updatedAt)} days)_` : ''
+    lines.push(`- ${icon} ${u.name}${note}${age}`)
   }
 
   return lines.join('\n').trim()

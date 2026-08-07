@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Task, TaskStatus, User } from '../types'
-import { formatDateOnly, isOverdue } from '../lib/dates'
+import { formatDateOnly, isCapacityStale, isOverdue } from '../lib/dates'
 import { Avatar, CapacityDot } from './Avatar'
 import { SnoozeButtons } from './SnoozeButton'
 
@@ -112,7 +112,7 @@ export function TaskCard({
             <span className="flex min-w-0 items-center gap-1.5">
               <Avatar user={assignee} size="sm" />
               <span className="truncate text-black/70 dark:text-white/70">{assignee.name}</span>
-              <CapacityDot status={assignee.capacity.status} />
+              <CapacityDot status={assignee.capacity.status} stale={isCapacityStale(assignee.capacity.updatedAt)} />
             </span>
           ) : (
             <span className="italic">Unassigned</span>

@@ -76,3 +76,20 @@ export function shouldNudgeExport(lastExportAt: Timestamp | null, hasTasks: bool
   if (!lastExportAt) return true
   return differenceInCalendarDays(new Date(), new Date(lastExportAt)) >= EXPORT_NUDGE_DAYS
 }
+
+export function daysSince(timestamp: Timestamp): number {
+  return differenceInCalendarDays(new Date(), new Date(timestamp))
+}
+
+/**
+ * A capacity light nobody has touched in a fortnight is a claim about a
+ * day job that has almost certainly moved on. Two weeks rather than one:
+ * the whole product principle is near-zero maintenance, so this should
+ * read as "worth a second look", not as a weekly chore.
+ */
+const CAPACITY_STALE_DAYS = 14
+
+/** Stale in both directions — a forgotten green ("I'm free") misleads exactly as much as a forgotten red. */
+export function isCapacityStale(updatedAt: Timestamp): boolean {
+  return daysSince(updatedAt) >= CAPACITY_STALE_DAYS
+}

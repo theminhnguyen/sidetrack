@@ -31,15 +31,48 @@ export function Avatar({ user, size = 'md' }: { user: User; size?: 'sm' | 'md' }
   )
 }
 
-export function CapacityDot({ status, className = '' }: { status: string; className?: string }) {
+/**
+ * Red/amber/green is the single worst palette to encode meaning in: red-green
+ * colour blindness affects roughly 8% of men, and this dot is the app's
+ * central status signal. Each state therefore also carries a distinct glyph,
+ * so it stays readable in greyscale — and on touch, where the `title`
+ * tooltip never appears at all.
+ */
+const CAPACITY_GLYPH: Record<string, string> = {
+  green: 'M2.5 5.2L4.3 7L7.5 3.4', // check — free
+  yellow: 'M2.6 5H7.4', // bar — limited
+  red: 'M3 3L7 7M7 3L3 7', // cross — unavailable
+}
+
+export function CapacityDot({
+  status,
+  stale = false,
+  className = '',
+}: {
+  status: string
+  /** Renders a hollow, muted dot: the value is old enough that it may no longer be true. */
+  stale?: boolean
+  className?: string
+}) {
   const ring = CAPACITY_RING[status]
+  const glyph = CAPACITY_GLYPH[status]
+  const label = CAPACITY_LABEL[status] ?? status
+
   return (
     <span
-      className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${CAPACITY_DOT[status] ?? 'bg-black/20 dark:bg-white/30'} ${
-        ring ? 'st-dot-pulse' : ''
-      } ${className}`}
-      style={ring ? { ['--st-ring' as string]: ring } : undefined}
-      title={CAPACITY_LABEL[status] ?? status}
-    />
+      role="img"
+      aria-label={stale ? `${label} (possibly out of date)` : label}
+      title={stale ? `${label} — possibly out of date` : label}
+      className={`inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full ${
+        CAPACITY_DOT[status] ?? 'bg-black/20 dark:bg-white/30'
+      } ${ring && !stale ? 'st-dot-pulse' : ''} ${stale ? 'opacity-40 ring-1 ring-black/30 dark:ring-white/40' : ''} ${className}`}
+      style={ring && !stale ? { ['--st-ring' as string]: ring } : undefined}
+    >
+      {glyph && (
+        <svg viewBox="0 0 10 10" className="h-2 w-2" aria-hidden="true">
+          <path d={glyph} fill="none" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
   )
 }

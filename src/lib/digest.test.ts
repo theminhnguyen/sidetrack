@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildDigest, formatDigestText } from './digest'
 import { createEmptyState } from '../types'
 import { makeAuditEntry, makeTask, makeUser } from './testFactory'
+import { localNoon, localNoonISO } from '../test/localTime'
 
 const SINCE = '2026-07-20T00:00:00.000Z'
 const BEFORE_SINCE = '2026-07-15T00:00:00.000Z'
@@ -89,7 +90,7 @@ describe('buildDigest — overdue', () => {
   // as the calendar moves past the hardcoded task dates below.
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'))
+    vi.setSystemTime(localNoon(2026, 8, 10))
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -138,5 +139,36 @@ describe('buildDigest — capacity', () => {
     const inactive = makeUser({ active: false })
     const digest = buildDigest(stateWith({ users: [active, inactive] }))
     expect(digest.capacity).toEqual([active])
+  })
+})
+
+describe('formatDigestText — stale capacity', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(localNoon(2026, 8, 15))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // Midday timestamps: the day count is compared in local calendar days, so
+  // a midnight-UTC value would land on a different day in a negative offset.
+  it('flags a light nobody has confirmed in weeks, so the report does not present it as current fact', () => {
+    const user = makeUser({
+      name: 'Alex Chen',
+      capacity: { status: 'green', note: null, updatedAt: localNoonISO(2026, 7, 20) },
+    })
+    const text = formatDigestText(buildDigest(stateWith({ users: [user] })))
+    expect(text).toContain('- 🟢 Alex Chen _(unchanged for 26 days)_')
+  })
+
+  it('leaves a freshly confirmed light unannotated', () => {
+    const user = makeUser({
+      name: 'Priya Nair',
+      capacity: { status: 'red', note: 'Incident response', updatedAt: localNoonISO(2026, 8, 14) },
+    })
+    const text = formatDigestText(buildDigest(stateWith({ users: [user] })))
+    expect(text).toContain('- 🔴 Priya Nair — Incident response')
+    expect(text).not.toContain('unchanged for')
   })
 })

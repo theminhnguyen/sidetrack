@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppStore } from './useAppStore'
 import { readTestStorage, resetTestStorage } from '../test/setup'
+import { localNoon } from '../test/localTime'
 
 /**
  * These cover regressions found during the post-implementation review, so the
@@ -318,7 +319,7 @@ describe('exportJSON — records lastExportAt (PLAN-V2 P1)', () => {
 describe('addTask — default start date', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'))
+    vi.setSystemTime(localNoon(2026, 8, 10))
   })
   afterEach(() => {
     vi.useRealTimers()

@@ -3,12 +3,25 @@ import { useAppStore } from '../store/useAppStore'
 import type { CapacityStatus } from '../types'
 import { Avatar, CapacityDot } from './Avatar'
 import { Popover } from './Popover'
+import { daysSince, isCapacityStale } from '../lib/dates'
 
 const CAPACITY_OPTIONS: { status: CapacityStatus; label: string; dot: string }[] = [
   { status: 'green', label: 'Green', dot: 'bg-emerald-500' },
   { status: 'yellow', label: 'Yellow', dot: 'bg-amber-500' },
   { status: 'red', label: 'Red', dot: 'bg-rose-500' },
 ]
+
+/** Surfaces `capacity.updatedAt`, which the app has always written and never once read. */
+function CapacityAge({ updatedAt }: { updatedAt: string }) {
+  const days = daysSince(updatedAt)
+  const stale = isCapacityStale(updatedAt)
+  const text = days === 0 ? 'set today' : days === 1 ? 'set yesterday' : `set ${days} days ago`
+  return (
+    <span className={`text-[11px] ${stale ? 'text-amber-700 dark:text-amber-300/90' : 'text-black/40 dark:text-white/40'}`}>
+      {stale ? `${text} — still right?` : text}
+    </span>
+  )
+}
 
 function UserEditPanel({ userId, close }: { userId: string; close: () => void }) {
   const user = useAppStore((s) => s.users.find((u) => u.id === userId))
@@ -40,7 +53,10 @@ function UserEditPanel({ userId, close }: { userId: string; close: () => void })
       </div>
 
       <div>
-        <label className="mb-1 block text-xs text-black/50 dark:text-white/50">Day-job capacity</label>
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <label className="text-xs text-black/50 dark:text-white/50">Day-job capacity</label>
+          <CapacityAge updatedAt={user.capacity.updatedAt} />
+        </div>
         <div className="flex gap-1.5">
           {CAPACITY_OPTIONS.map((opt) => (
             <button
@@ -133,7 +149,7 @@ export function TeamBar() {
             >
               <Avatar user={user} />
               <span className="text-sm">{user.name}</span>
-              <CapacityDot status={user.capacity.status} />
+              <CapacityDot status={user.capacity.status} stale={isCapacityStale(user.capacity.updatedAt)} />
             </button>
           )}
         >
