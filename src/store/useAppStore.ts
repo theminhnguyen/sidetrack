@@ -41,6 +41,8 @@ interface AppStore extends AppState {
   currentUserId: string | null
   saveError: boolean
   cascadeSuggestion: CascadeSuggestion | null
+  /** Set when confirming a cascade applied fewer shifts than shown — see confirmCascadeSuggestion. */
+  cascadeAppliedNote: string | null
   /** Set when a task crosses into `done`, so the UI can celebrate it once. */
   celebration: { taskId: string; at: number } | null
 
@@ -48,6 +50,7 @@ interface AppStore extends AppState {
   dismissSaveError: () => void
   dismissCascadeSuggestion: () => void
   confirmCascadeSuggestion: () => void
+  dismissCascadeAppliedNote: () => void
   clearCelebration: () => void
 
   addUser: (name: string) => User
@@ -80,6 +83,8 @@ interface AppStore extends AppState {
   snoozeTask: (id: string, weeks: number, reason: string, shiftOpenMilestones: boolean) => void
 
   exportJSON: () => string
+  /** Validates and summarizes a would-be import without touching any state — lets the UI ask "replace N tasks with M?" before committing. */
+  previewImport: (json: string) => { ok: true; userCount: number; taskCount: number } | { ok: false; error: string }
   importJSON: (json: string) => { ok: true } | { ok: false; error: string }
 
   setLastDigestAt: (timestamp: string) => void
@@ -130,6 +135,32 @@ function logEvent(
   })
 }
 
+/**
+ * Shared by previewImport and importJSON so the two can never disagree about
+ * what counts as a valid export — a file the preview accepted but the
+ * commit step rejected (or vice versa) would be its own kind of data-loss bug.
+ */
+function parseImportCandidate(json: string): { ok: true; parsed: Partial<AppState> } | { ok: false; error: string } {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return { ok: false, error: 'Not valid JSON.' }
+  }
+  const candidate = parsed as Partial<AppState>
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    typeof candidate.schemaVersion !== 'number' ||
+    !Array.isArray(candidate.users) ||
+    !Array.isArray(candidate.tasks) ||
+    !Array.isArray(candidate.auditLog)
+  ) {
+    return { ok: false, error: 'This does not look like a SideTrack export.' }
+  }
+  return { ok: true, parsed: candidate }
+}
+
 function loadInitialState(): AppState {
   const stored = localStorageAdapter.load()
   if (stored.users.length === 0 && stored.tasks.length === 0) {
@@ -143,11 +174,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   currentUserId: null,
   saveError: false,
   cascadeSuggestion: null,
+  cascadeAppliedNote: null,
   celebration: null,
 
   setCurrentUser: (userId) => set({ currentUserId: userId }),
   dismissSaveError: () => set({ saveError: false }),
   dismissCascadeSuggestion: () => set({ cascadeSuggestion: null }),
+  dismissCascadeAppliedNote: () => set({ cascadeAppliedNote: null }),
   clearCelebration: () => set({ celebration: null }),
   confirmCascadeSuggestion: () => {
     const suggestion = get().cascadeSuggestion
@@ -155,9 +188,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const state = get()
     const shiftsByTaskId = new Map(suggestion.plan.map((s) => [s.taskId, s]))
     const auditLog = [...state.auditLog]
+    let droppedCount = 0
     const tasks = state.tasks.map((t) => {
       const shift = shiftsByTaskId.get(t.id)
       if (!shift) return t
+      // The plan was computed when the toast first appeared. If this task's
+      // due date no longer matches what the plan assumed, something else
+      // changed it in the meantime — applying `shift.to` now would both
+      // clobber that newer value and log a "from" the task never actually had.
+      if (shift.from !== t.dueDate) {
+        droppedCount++
+        return t
+      }
       logEvent(auditLog, t.id, state.currentUserId, 'deadline_shifted', {
         field: 'dueDate',
         from: shift.from,
@@ -167,7 +209,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       })
       return { ...t, dueDate: shift.to, snoozeCount: t.snoozeCount + 1, updatedAt: nowTimestamp() }
     })
-    const next = { ...state, tasks, auditLog, cascadeSuggestion: null }
+    const cascadeAppliedNote =
+      droppedCount > 0
+        ? `${droppedCount} of ${suggestion.plan.length} task(s) had already changed since this suggestion appeared and were not moved.`
+        : null
+    const next = { ...state, tasks, auditLog, cascadeSuggestion: null, cascadeAppliedNote }
     set(next)
     persist(next)
   },
@@ -432,7 +478,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       delta,
       reason,
     })
-    const next = { ...state, tasks, auditLog }
+    // A suggestion computed before this shift may no longer reflect reality —
+    // it should never outlive the action that could invalidate it. This path
+    // doesn't recompute a cascade of its own, so the only valid outcome is `null`.
+    const next = { ...state, tasks, auditLog, cascadeSuggestion: null }
     set(next)
     persist(next)
   },
@@ -456,7 +505,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       delta: 'manual',
       reason,
     })
-    const next = { ...state, tasks, auditLog }
+    const next = { ...state, tasks, auditLog, cascadeSuggestion: null }
     set(next)
     persist(next)
   },
@@ -497,13 +546,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
 
+    // Always replace, never keep a leftover suggestion from an earlier,
+    // unrelated snooze — a suggestion must never outlive the action that
+    // produced it (see PLAN-V2.md P0.2).
     const cascadePlan = computeCascadePlan(tasks, id, weeks)
     const next = {
       ...state,
       tasks,
       auditLog,
-      cascadeSuggestion:
-        cascadePlan.length > 0 ? { rootTaskId: id, rootTitle: task.title, plan: cascadePlan } : state.cascadeSuggestion,
+      cascadeSuggestion: cascadePlan.length > 0 ? { rootTaskId: id, rootTitle: task.title, plan: cascadePlan } : null,
     }
     set(next)
     persist(next)
@@ -514,25 +565,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return JSON.stringify({ schemaVersion, users, tasks, auditLog, settings }, null, 2)
   },
 
+  previewImport: (json) => {
+    const result = parseImportCandidate(json)
+    if (!result.ok) return result
+    return { ok: true, userCount: result.parsed.users!.length, taskCount: result.parsed.tasks!.length }
+  },
+
   importJSON: (json) => {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(json)
-    } catch {
-      return { ok: false, error: 'Not valid JSON.' }
-    }
-    const candidate = parsed as Partial<AppState>
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      typeof candidate.schemaVersion !== 'number' ||
-      !Array.isArray(candidate.users) ||
-      !Array.isArray(candidate.tasks) ||
-      !Array.isArray(candidate.auditLog)
-    ) {
-      return { ok: false, error: 'This does not look like a SideTrack export.' }
-    }
-    const migrated = migrate(parsed)
+    const result = parseImportCandidate(json)
+    if (!result.ok) return result
+    const migrated = migrate(result.parsed)
     const next = { ...get(), ...migrated }
     set(next)
     persist(migrated)

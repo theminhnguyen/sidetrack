@@ -5,7 +5,9 @@ import { CURRENT_SCHEMA_VERSION, createEmptyState } from '../types'
 describe('migrate', () => {
   it('passes through a state already at the current schema version', () => {
     const state = { ...createEmptyState(), users: [{ id: 'u_1' }] }
-    expect(migrate(state)).toBe(state)
+    // Reference equality is not expected: migrate() always normalizes
+    // (see the "fills in a missing settings field" test below for why).
+    expect(migrate(state)).toEqual(state)
   })
 
   it('falls back to an empty state for null/undefined input', () => {
@@ -23,17 +25,34 @@ describe('migrate', () => {
     expect(migrate({ schemaVersion: '1' })).toEqual(createEmptyState())
   })
 
-  it('falls back to an empty state for an unknown future schema version (no downgrade path)', () => {
-    // A version newer than what this build knows about must never crash —
-    // it resets rather than risk reading a shape this code doesn't understand.
+  it('falls back to an empty state for an unknown future schema version (PLAN-V2 P0.4)', () => {
+    // Regression: this used to be returned unchanged ("it's not this
+    // migration's job to downgrade"). But a version newer than this build
+    // knows about could have renamed or repurposed any field — reading it
+    // with today's assumptions risks silent corruption, not just a crash.
     const future = { ...createEmptyState(), schemaVersion: CURRENT_SCHEMA_VERSION + 1 }
-    // Our while-loop only walks versions *below* current, so a version above
-    // current is returned as-is (it's not this migration's job to downgrade).
-    expect(migrate(future)).toBe(future)
+    expect(migrate(future)).toEqual(createEmptyState())
   })
 
   it('falls back to an empty state for an old version with no registered migration step', () => {
     const stale = { ...createEmptyState(), schemaVersion: 0 }
     expect(migrate(stale)).toEqual(createEmptyState())
+  })
+
+  it('fills in a missing settings field rather than passing it through (PLAN-V2 P0.4)', () => {
+    // A hand-edited or truncated export missing `settings` used to be
+    // accepted as-is, and then crashed the first time the digest read
+    // `state.settings.lastDigestAt`.
+    const noSettings = { schemaVersion: CURRENT_SCHEMA_VERSION, users: [], tasks: [], auditLog: [] }
+    expect(migrate(noSettings)).toEqual(createEmptyState())
+  })
+
+  it('fills in missing users/tasks/auditLog individually, without discarding the rest', () => {
+    const partial = { schemaVersion: CURRENT_SCHEMA_VERSION, tasks: [{ id: 't_1' }] }
+    const result = migrate(partial)
+    expect(result.users).toEqual([])
+    expect(result.tasks).toEqual([{ id: 't_1' }])
+    expect(result.auditLog).toEqual([])
+    expect(result.settings).toEqual(createEmptyState().settings)
   })
 })

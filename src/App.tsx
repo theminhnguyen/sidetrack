@@ -11,21 +11,31 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { GanttChart } from './components/GanttChart'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DigestModal } from './components/DigestModal'
+import { Modal } from './components/Modal'
 import { exportToPptx } from './lib/pptxExport'
+
+interface PendingImport {
+  text: string
+  userCount: number
+  taskCount: number
+}
 
 type ViewTab = 'board' | 'gantt'
 
 export default function App() {
   const allUsers = useAppStore((s) => s.users)
   const users = allUsers.filter((u) => u.active)
+  const taskCount = useAppStore((s) => s.tasks.length)
   const currentUserId = useAppStore((s) => s.currentUserId)
   const setCurrentUser = useAppStore((s) => s.setCurrentUser)
   const saveError = useAppStore((s) => s.saveError)
   const dismissSaveError = useAppStore((s) => s.dismissSaveError)
   const exportJSON = useAppStore((s) => s.exportJSON)
+  const previewImport = useAppStore((s) => s.previewImport)
   const importJSON = useAppStore((s) => s.importJSON)
 
   const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false)
   const [viewTab, setViewTab] = useState<ViewTab>('board')
@@ -48,8 +58,24 @@ export default function App() {
 
   async function handleImportFile(file: File) {
     const text = await readFileAsText(file)
-    const result = importJSON(text)
+    const preview = previewImport(text)
+    if (!preview.ok) {
+      setImportMessage(`Import failed: ${preview.error}`)
+      return
+    }
+    // Importing replaces everything at once with no undo, and this is the
+    // only copy of the data — so it's confirmed with actual numbers, not a
+    // generic warning, and there's a real file to fall back to if it goes wrong.
+    setPendingImport({ text, userCount: preview.userCount, taskCount: preview.taskCount })
+  }
+
+  function confirmImport() {
+    if (!pendingImport) return
+    const date = new Date().toISOString().slice(0, 10)
+    downloadJSON(`sidetrack-before-import-${date}.json`, exportJSON())
+    const result = importJSON(pendingImport.text)
     setImportMessage(result.ok ? 'Import successful.' : `Import failed: ${result.error}`)
+    setPendingImport(null)
   }
 
   async function handleExportPptx() {
@@ -217,6 +243,37 @@ export default function App() {
       )}
 
       {isDigestOpen && <DigestModal onClose={() => setIsDigestOpen(false)} />}
+
+      {pendingImport && (
+        <Modal title="Replace all data?" onClose={() => setPendingImport(null)}>
+          <p className="text-sm text-black/70 dark:text-white/70">
+            This browser currently has <strong>{taskCount}</strong> task{taskCount === 1 ? '' : 's'} and{' '}
+            <strong>{allUsers.length}</strong> teammate{allUsers.length === 1 ? '' : 's'}. The file you picked has{' '}
+            <strong>{pendingImport.taskCount}</strong> task{pendingImport.taskCount === 1 ? '' : 's'} and{' '}
+            <strong>{pendingImport.userCount}</strong> teammate{pendingImport.userCount === 1 ? '' : 's'}.
+          </p>
+          <p className="mt-2 text-sm text-black/70 dark:text-white/70">
+            Importing replaces everything currently stored here. This can't be undone from inside the app.
+          </p>
+          <p className="mt-2 text-xs text-black/50 dark:text-white/50">
+            A backup of what's here now will download automatically before the replace happens.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={confirmImport}
+              className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-500/20 dark:text-rose-300"
+            >
+              Back up &amp; replace
+            </button>
+            <button
+              onClick={() => setPendingImport(null)}
+              className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      )}
 
       <CascadeToast />
       <Confetti />

@@ -150,6 +150,154 @@ describe('shiftDueDate — range invariant', () => {
   })
 })
 
+describe('confirmCascadeSuggestion — stale plan validation (PLAN-V2 P0.1)', () => {
+  it('drops a shift whose assumed starting date no longer matches, and does not log or apply it', () => {
+    const rootId = freshTask('2026-08-01')
+    const depId = freshTask('2026-08-05')
+    useAppStore.getState().setDependsOn(depId, [rootId])
+
+    // A plan computed earlier, now stale: something (e.g. an import) moved
+    // the dependent's due date without going through the suggestion at all.
+    useAppStore.setState({
+      cascadeSuggestion: {
+        rootTaskId: rootId,
+        rootTitle: 'T',
+        plan: [{ taskId: depId, title: 'T', from: '2026-08-05', to: '2026-08-19' }],
+      },
+    })
+    useAppStore.setState((s) => ({
+      tasks: s.tasks.map((t) => (t.id === depId ? { ...t, dueDate: '2026-08-10' } : t)),
+    }))
+    const auditBefore = useAppStore.getState().auditLog.length
+
+    useAppStore.getState().confirmCascadeSuggestion()
+
+    const dep = useAppStore.getState().tasks.find((t) => t.id === depId)
+    expect(dep?.dueDate).toBe('2026-08-10') // not overwritten to the stale '2026-08-19'
+    expect(useAppStore.getState().auditLog.length).toBe(auditBefore) // no false "from" logged
+    expect(useAppStore.getState().cascadeSuggestion).toBeNull()
+    expect(useAppStore.getState().cascadeAppliedNote).toContain('1 of 1')
+  })
+
+  it('applies only the still-valid shifts when a plan is partially stale', () => {
+    const rootId = freshTask('2026-08-01')
+    const dep1 = freshTask('2026-08-05')
+    const dep2 = freshTask('2026-08-06')
+    useAppStore.getState().setDependsOn(dep1, [rootId])
+    useAppStore.getState().setDependsOn(dep2, [rootId])
+    useAppStore.setState({
+      cascadeSuggestion: {
+        rootTaskId: rootId,
+        rootTitle: 'T',
+        plan: [
+          { taskId: dep1, title: 'T', from: '2026-08-05', to: '2026-08-19' },
+          { taskId: dep2, title: 'T', from: '2026-08-06', to: '2026-08-20' },
+        ],
+      },
+    })
+    useAppStore.setState((s) => ({
+      tasks: s.tasks.map((t) => (t.id === dep1 ? { ...t, dueDate: '2026-08-11' } : t)),
+    }))
+
+    useAppStore.getState().confirmCascadeSuggestion()
+
+    const tasks = useAppStore.getState().tasks
+    expect(tasks.find((t) => t.id === dep1)?.dueDate).toBe('2026-08-11') // stale, left alone
+    expect(tasks.find((t) => t.id === dep2)?.dueDate).toBe('2026-08-20') // still valid, applied
+    expect(useAppStore.getState().cascadeAppliedNote).toContain('1 of 2')
+  })
+
+  it('applies the full plan and sets no note when nothing went stale', () => {
+    const rootId = freshTask('2026-08-01')
+    const depId = freshTask('2026-08-05')
+    useAppStore.getState().setDependsOn(depId, [rootId])
+    useAppStore.setState({
+      cascadeSuggestion: {
+        rootTaskId: rootId,
+        rootTitle: 'T',
+        plan: [{ taskId: depId, title: 'T', from: '2026-08-05', to: '2026-08-19' }],
+      },
+    })
+
+    useAppStore.getState().confirmCascadeSuggestion()
+
+    expect(useAppStore.getState().tasks.find((t) => t.id === depId)?.dueDate).toBe('2026-08-19')
+    expect(useAppStore.getState().cascadeAppliedNote).toBeNull()
+  })
+})
+
+describe('cascade suggestion replacement (PLAN-V2 P0.2)', () => {
+  it('snoozeTask replaces a stale suggestion instead of keeping it when the new snooze has no conflicts', () => {
+    const rootId = freshTask('2026-08-01')
+    const depId = freshTask('2026-08-05')
+    useAppStore.getState().setDependsOn(depId, [rootId])
+    useAppStore.getState().snoozeTask(rootId, 2, 'Day job', false)
+    expect(useAppStore.getState().cascadeSuggestion).not.toBeNull()
+
+    const otherId = freshTask('2026-09-01')
+    useAppStore.getState().snoozeTask(otherId, 1, 'Waiting on others', false)
+
+    expect(useAppStore.getState().cascadeSuggestion).toBeNull()
+  })
+
+  it('shiftDueDate clears an existing suggestion — it never recomputes one of its own', () => {
+    const rootId = freshTask('2026-08-01')
+    const depId = freshTask('2026-08-05')
+    useAppStore.getState().setDependsOn(depId, [rootId])
+    useAppStore.getState().snoozeTask(rootId, 2, 'Day job', false)
+    expect(useAppStore.getState().cascadeSuggestion).not.toBeNull()
+
+    useAppStore.getState().shiftDueDate(depId, '2026-08-10', 'Manual tweak', 'manual')
+    expect(useAppStore.getState().cascadeSuggestion).toBeNull()
+  })
+
+  it('shiftStartDate clears an existing suggestion', () => {
+    const rootId = freshTask('2026-08-01')
+    const depId = freshTask('2026-08-05')
+    useAppStore.getState().setDependsOn(depId, [rootId])
+    useAppStore.getState().snoozeTask(rootId, 2, 'Day job', false)
+    expect(useAppStore.getState().cascadeSuggestion).not.toBeNull()
+
+    useAppStore.getState().shiftStartDate(depId, '2026-08-04', 'Started earlier')
+    expect(useAppStore.getState().cascadeSuggestion).toBeNull()
+  })
+})
+
+describe('previewImport (PLAN-V2 P0.3)', () => {
+  it('summarizes a valid export without touching current state', () => {
+    freshTask('2026-08-01')
+    const before = useAppStore.getState().tasks.length
+    const file = JSON.stringify({ schemaVersion: 1, users: [{ id: 'u_1' }], tasks: [{ id: 't_1' }, { id: 't_2' }], auditLog: [] })
+
+    const result = useAppStore.getState().previewImport(file)
+
+    expect(result).toEqual({ ok: true, userCount: 1, taskCount: 2 })
+    expect(useAppStore.getState().tasks.length).toBe(before) // untouched
+  })
+
+  it('rejects invalid JSON without touching current state', () => {
+    const before = useAppStore.getState().tasks.length
+    const result = useAppStore.getState().previewImport('not json')
+    expect(result).toEqual({ ok: false, error: 'Not valid JSON.' })
+    expect(useAppStore.getState().tasks.length).toBe(before)
+  })
+
+  it('rejects a file that does not look like a SideTrack export', () => {
+    const result = useAppStore.getState().previewImport(JSON.stringify({ hello: 'world' }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('agrees with importJSON on what counts as valid — same acceptance, same rejection', () => {
+    const validFile = JSON.stringify({ schemaVersion: 1, users: [], tasks: [], auditLog: [] })
+    expect(useAppStore.getState().previewImport(validFile).ok).toBe(true)
+    expect(useAppStore.getState().importJSON(validFile).ok).toBe(true)
+
+    const invalidFile = JSON.stringify({ users: [] }) // missing schemaVersion/tasks/auditLog
+    expect(useAppStore.getState().previewImport(invalidFile).ok).toBe(false)
+    expect(useAppStore.getState().importJSON(invalidFile).ok).toBe(false)
+  })
+})
+
 describe('addTask — default start date', () => {
   beforeEach(() => {
     vi.useFakeTimers()
