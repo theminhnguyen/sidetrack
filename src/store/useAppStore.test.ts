@@ -369,7 +369,7 @@ describe('shiftMilestone (PLAN-V2 P2.2)', () => {
 })
 
 describe('persistence', () => {
-  it('never writes session-only fields into storage', () => {
+  it('never writes session-only fields into the exported state blob', () => {
     useAppStore.getState().addUser('Alex Chen')
     useAppStore.getState().setCurrentUser('u_whoever')
     // The adapter debounces; force the pending write out.
@@ -382,5 +382,58 @@ describe('persistence', () => {
         resolve()
       }, 600)
     })
+  })
+})
+
+describe('setCurrentUser — the audit author must outlive a reload', () => {
+  it('writes the choice to its own key, so a reload can restore who is signing edits', () => {
+    const user = useAppStore.getState().addUser('Alex Chen')
+    useAppStore.getState().setCurrentUser(user.id)
+    // Its own key, deliberately outside `sidetrack:state`: this is a
+    // per-device preference and must not travel in an export. That it stays
+    // out of the state blob is asserted by the `persistence` suite above,
+    // which pins the exact key list after the adapter's debounce has flushed.
+    expect(readTestStorage('sidetrack:currentUser')).toBe(user.id)
+  })
+
+  it('clears the stored key when switching back to nobody', () => {
+    const user = useAppStore.getState().addUser('Alex Chen')
+    useAppStore.getState().setCurrentUser(user.id)
+    useAppStore.getState().setCurrentUser(null)
+    expect(readTestStorage('sidetrack:currentUser')).toBeNull()
+  })
+
+  it('drops the acting user on import when the incoming roster does not contain them', () => {
+    const user = useAppStore.getState().addUser('Alex Chen')
+    useAppStore.getState().setCurrentUser(user.id)
+    expect(useAppStore.getState().currentUserId).toBe(user.id)
+
+    const foreignBoard = JSON.stringify({
+      schemaVersion: 2,
+      users: [{ id: 'u_someone_else', name: 'Someone Else' }],
+      tasks: [],
+      auditLog: [],
+      settings: { lastDigestAt: null, lastExportAt: null },
+    })
+    useAppStore.getState().importJSON(foreignBoard)
+
+    expect(useAppStore.getState().currentUserId).toBeNull()
+    expect(readTestStorage('sidetrack:currentUser')).toBeNull()
+  })
+
+  it('keeps the acting user on import when they do exist in the incoming roster', () => {
+    const user = useAppStore.getState().addUser('Alex Chen')
+    useAppStore.getState().setCurrentUser(user.id)
+
+    const sameTeam = JSON.stringify({
+      schemaVersion: 2,
+      users: [{ id: user.id, name: 'Alex Chen' }],
+      tasks: [],
+      auditLog: [],
+      settings: { lastDigestAt: null, lastExportAt: null },
+    })
+    useAppStore.getState().importJSON(sameTeam)
+
+    expect(useAppStore.getState().currentUserId).toBe(user.id)
   })
 })

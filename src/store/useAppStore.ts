@@ -10,6 +10,7 @@ import {
 } from '../types'
 import { createId } from '../lib/id'
 import { addWeeksToDateOnly, isAfterDateOnly, isBeforeDateOnly, nowTimestamp, today } from '../lib/dates'
+import { loadCurrentUserId, resolveCurrentUserId, saveCurrentUserId } from '../lib/currentUser'
 import { localStorageAdapter } from '../storage/localStorageAdapter'
 import { migrate } from '../storage/StorageAdapter'
 import { seedState } from '../data/seed'
@@ -169,15 +170,23 @@ function loadInitialState(): AppState {
   return stored
 }
 
+const initialState = loadInitialState()
+
 export const useAppStore = create<AppStore>((set, get) => ({
-  ...loadInitialState(),
-  currentUserId: null,
+  ...initialState,
+  // Restored from its own storage key, then checked against the roster that
+  // actually loaded — a stored id pointing at a since-removed teammate must
+  // not silently keep signing audit entries.
+  currentUserId: resolveCurrentUserId(loadCurrentUserId(), initialState.users),
   saveError: false,
   cascadeSuggestion: null,
   cascadeAppliedNote: null,
   celebration: null,
 
-  setCurrentUser: (userId) => set({ currentUserId: userId }),
+  setCurrentUser: (userId) => {
+    saveCurrentUserId(userId)
+    set({ currentUserId: userId })
+  },
   dismissSaveError: () => set({ saveError: false }),
   dismissCascadeSuggestion: () => set({ cascadeSuggestion: null }),
   dismissCascadeAppliedNote: () => set({ cascadeAppliedNote: null }),
@@ -585,7 +594,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const result = parseImportCandidate(json)
     if (!result.ok) return result
     const migrated = migrate(result.parsed)
-    const next = { ...get(), ...migrated }
+    // An import swaps the entire roster. Whoever you were signing as may not
+    // exist in the incoming data — keeping the old id would attribute every
+    // later edit to a teammate this board has never heard of.
+    const currentUserId = resolveCurrentUserId(get().currentUserId, migrated.users)
+    saveCurrentUserId(currentUserId)
+    const next = { ...get(), ...migrated, currentUserId }
     set(next)
     persist(migrated)
     return { ok: true }
