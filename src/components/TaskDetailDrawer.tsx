@@ -44,6 +44,12 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [deliverable, setDeliverable] = useState(task?.deliverable ?? '')
+  // Autosave-on-blur is otherwise silent — a brief checkmark badge is the
+  // only feedback that the edit actually landed. Each field gets its own
+  // timestamp so triggering one doesn't replay another's badge.
+  const [titleSavedAt, setTitleSavedAt] = useState<number | null>(null)
+  const [deliverableSavedAt, setDeliverableSavedAt] = useState<number | null>(null)
+  const [descriptionSavedAt, setDescriptionSavedAt] = useState<number | null>(null)
   const [blockReason, setBlockReason] = useState<string | null>(null)
   const [draftStartDate, setDraftStartDate] = useState(task?.startDate ?? today())
   const [startDateReason, setStartDateReason] = useState('')
@@ -111,20 +117,26 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   return (
     <Drawer onClose={onClose}>
       <div className="flex items-start justify-between gap-3">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => {
-            // A task must keep a title, so an empty field snaps back to the
-            // stored value instead of silently discarding the edit.
-            if (!title.trim()) {
-              setTitle(task.title)
-              return
-            }
-            if (title !== task.title) updateTaskFields(task.id, { title: title.trim() })
-          }}
-          className="w-full bg-transparent text-xl font-semibold outline-none focus:border-b focus:border-black/30 dark:focus:border-white/30"
-        />
+        <div className="relative w-full">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => {
+              // A task must keep a title, so an empty field snaps back to the
+              // stored value instead of silently discarding the edit.
+              if (!title.trim()) {
+                setTitle(task.title)
+                return
+              }
+              if (title !== task.title) {
+                updateTaskFields(task.id, { title: title.trim() })
+                setTitleSavedAt(Date.now())
+              }
+            }}
+            className="w-full bg-transparent text-xl font-semibold outline-none focus:border-b focus:border-black/30 dark:focus:border-white/30"
+          />
+          <SavedBadge at={titleSavedAt} />
+        </div>
         <button
           onClick={onClose}
           className="shrink-0 rounded-md p-1 text-black/50 hover:bg-black/5 hover:text-black dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
@@ -133,14 +145,19 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         </button>
       </div>
 
-      <div className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-3">
+      <div className="relative mt-5 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-3">
+        <SavedBadge at={deliverableSavedAt} />
         <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300/80">
           Deliverable
         </label>
         <textarea
           value={deliverable}
           onChange={(e) => setDeliverable(e.target.value)}
-          onBlur={() => deliverable !== task.deliverable && updateTaskFields(task.id, { deliverable })}
+          onBlur={() => {
+            if (deliverable === task.deliverable) return
+            updateTaskFields(task.id, { deliverable })
+            setDeliverableSavedAt(Date.now())
+          }}
           rows={2}
           placeholder="What concrete outcome does 'done' mean?"
           className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-black/30 dark:placeholder:text-white/30"
@@ -307,12 +324,17 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="relative mt-4">
+        <SavedBadge at={descriptionSavedAt} />
         <label className={LABEL}>Description</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          onBlur={() => description !== task.description && updateTaskFields(task.id, { description })}
+          onBlur={() => {
+            if (description === task.description) return
+            updateTaskFields(task.id, { description })
+            setDescriptionSavedAt(Date.now())
+          }}
           rows={3}
           className={`resize-none ${INPUT}`}
         />
@@ -323,8 +345,12 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         <ul className="space-y-1.5">
           {task.milestones.map((m) => (
             <li key={m.id} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={m.done} onChange={() => toggleMilestone(task.id, m.id)} className="h-3.5 w-3.5" />
-              <span className={m.done ? 'flex-1 text-black/40 line-through dark:text-white/40' : 'flex-1'}>{m.title}</span>
+              <MilestoneCheckbox done={m.done} onToggle={() => toggleMilestone(task.id, m.id)} label={m.title} />
+              <span
+                className={`flex-1 transition-colors duration-300 ${m.done ? 'text-black/40 line-through dark:text-white/40' : ''}`}
+              >
+                {m.title}
+              </span>
               <input
                 type="date"
                 value={m.dueDate}
@@ -427,5 +453,60 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         </Modal>
       )}
     </Drawer>
+  )
+}
+
+/**
+ * A custom checkbox (not a native <input>) so the checkmark can draw itself
+ * in with an SVG stroke animation on completion — a native checkbox's check
+ * mark is drawn by the OS/browser and can't be animated at all.
+ */
+function MilestoneCheckbox({ done, onToggle, label }: { done: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={done}
+      aria-label={done ? `Mark milestone "${label}" as not done` : `Mark milestone "${label}" as done`}
+      onClick={onToggle}
+      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border transition-colors duration-200 ${
+        done
+          ? 'border-emerald-500 bg-emerald-500'
+          : 'border-black/30 hover:border-black/50 dark:border-white/30 dark:hover:border-white/50'
+      }`}
+    >
+      {done && (
+        <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" aria-hidden="true">
+          <path
+            d="M2.5 6.3L5 8.8L9.5 3.3"
+            fill="none"
+            stroke="white"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            pathLength="1"
+            className="st-check-draw"
+          />
+        </svg>
+      )}
+    </button>
+  )
+}
+
+/**
+ * Autosave-on-blur has no other feedback that an edit actually landed. `at`
+ * is a fresh timestamp per save (not just a boolean) so re-mounting this via
+ * `key` restarts the animation even when the same field is saved twice in a row.
+ */
+function SavedBadge({ at }: { at: number | null }) {
+  if (at === null) return null
+  return (
+    <span
+      key={at}
+      aria-hidden="true"
+      className="st-saved-badge pointer-events-none absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] font-bold text-white"
+    >
+      ✓
+    </span>
   )
 }

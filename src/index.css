@@ -172,6 +172,51 @@ button:active:not(:disabled) {
   transform: scale(0.96);
 }
 
+/*
+ * The milestone checkmark draws itself in. Needs the SVG path's
+ * `pathLength="1"` so the dash values are a fraction of the path rather than
+ * user units — otherwise the numbers would depend on the path's actual length.
+ */
+@keyframes st-check-draw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+.st-check-draw {
+  stroke-dasharray: 1;
+  animation: st-check-draw 0.28s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+/* Brief "saved" acknowledgement on autosaved fields: pop in, hold, fade out. */
+@keyframes st-saved-badge {
+  0%   { opacity: 0; transform: scale(0.4); }
+  18%  { opacity: 1; transform: scale(1.15); }
+  30%  { transform: scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+.st-saved-badge {
+  animation: st-saved-badge 1.6s ease-out forwards;
+}
+
+/* Theme toggle icon spins as it swaps. */
+@keyframes st-theme-spin {
+  from { opacity: 0; transform: rotate(-140deg) scale(0.4); }
+  to   { opacity: 1; transform: none; }
+}
+.st-theme-spin {
+  animation: st-theme-spin 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Gantt bars lift slightly under the cursor. */
+.gantt .bar-wrapper .bar,
+.gantt .bar-wrapper .bar-progress {
+  transition: filter 0.18s ease;
+}
+.gantt .bar-wrapper:hover .bar,
+.gantt .bar-wrapper:hover .bar-progress {
+  filter: brightness(1.12);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .st-rise,
   .st-fade,
@@ -181,9 +226,23 @@ button:active:not(:disabled) {
   .st-flash,
   .st-dot-pulse,
   .st-confetti-piece,
+  .st-check-draw,
+  .st-theme-spin,
   .gantt-shell.st-gantt-intro .bar-wrapper {
     animation: none !important;
   }
+  /*
+   * The saved badge is the one exception that must not simply have its
+   * animation removed: it's rendered only for its own duration and relies on
+   * the animation's final `opacity: 0` to disappear. Dropping the animation
+   * would leave it stuck on screen forever, so it's hidden outright instead.
+   */
+  .st-saved-badge {
+    animation: none !important;
+    display: none;
+  }
+  .gantt .bar-wrapper .bar,
+  .gantt .bar-wrapper .bar-progress,
   button {
     transition: none;
   }

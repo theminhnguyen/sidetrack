@@ -122,13 +122,14 @@ export function TeamBar() {
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      {users.map((user) => (
+      {users.map((user, i) => (
         <Popover
           key={user.id}
           trigger={(open) => (
             <button
               onClick={open}
-              className="flex items-center gap-2 rounded-full border border-black/15 py-1 pl-1 pr-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
+              style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+              className="st-pop flex items-center gap-2 rounded-full border border-black/15 py-1 pl-1 pr-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
             >
               <Avatar user={user} />
               <span className="text-sm">{user.name}</span>

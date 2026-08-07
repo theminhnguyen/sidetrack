@@ -42,13 +42,16 @@ export function DigestModal({ onClose }: { onClose: () => void }) {
       <div className="mt-4 flex items-center justify-between">
         <button
           onClick={handleCopy}
-          className="rounded-md border border-black/20 bg-black/5 px-3 py-1.5 text-sm hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
+          className="rounded-md border border-black/20 bg-black/5 px-3 py-1.5 text-sm transition-colors hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
         >
-          {copied ? 'Copied ✓' : 'Copy to clipboard'}
+          {/* Keyed so the label swap replays the pop instead of snapping. */}
+          <span key={String(copied)} className="st-pop inline-block">
+            {copied ? 'Copied ✓' : 'Copy to clipboard'}
+          </span>
         </button>
 
         {baselineUpdated ? (
-          <span className="text-sm text-emerald-700 dark:text-emerald-400">Baseline updated ✓</span>
+          <span className="st-pop text-sm text-emerald-700 dark:text-emerald-400">Baseline updated ✓</span>
         ) : (
           <button
             onClick={handleMarkBaseline}

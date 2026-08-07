@@ -237,10 +237,18 @@ export default function App() {
             + New task
           </button>
         </div>
-        {viewTab === 'board' && <TaskBoard onOpenTask={setSelectedTaskId} />}
+        {viewTab === 'board' && (
+          <div className="st-fade">
+            <TaskBoard onOpenTask={setSelectedTaskId} />
+          </div>
+        )}
         {/*
           Mounted lazily on first use, then kept mounted (just hidden) — see the
-          `visible` prop in GanttChart for why recreating it would leak.
+          `visible` prop in GanttChart for why recreating it would leak. Its
+          tab-switch visibility deliberately stays a plain `hidden` toggle
+          rather than an opacity transition — animating it would need the
+          element to stay in-flow while "hidden", which risks disturbing the
+          mount lifecycle that was carefully untangled from a real leak earlier.
         */}
         {hasOpenedGantt && (
           <div className={viewTab === 'gantt' ? undefined : 'hidden'}>

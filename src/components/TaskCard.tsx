@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Task, TaskStatus, User } from '../types'
 import { formatDateOnly, isOverdue } from '../lib/dates'
 import { Avatar, CapacityDot } from './Avatar'
@@ -42,11 +42,28 @@ export function TaskCard({
 }) {
   const overdue = task.status !== 'done' && isOverdue(task.dueDate)
 
-  // Evaluated once per mount: a card that landed here moments ago gets the ring,
-  // one that was already sitting in this column does not.
-  const [flashOnArrival] = useState(
-    () => allowFlash && Date.now() - Date.parse(task.updatedAt) < FLASH_WINDOW_MS,
+  // Bumped to a fresh value (never just `true`) so re-adding the ring after
+  // it's already been shown restarts the CSS animation instead of no-op'ing —
+  // React sees the same truthy value as "nothing changed" otherwise.
+  const [flashToken, setFlashToken] = useState(() =>
+    allowFlash && Date.now() - Date.parse(task.updatedAt) < FLASH_WINDOW_MS ? Date.now() : null,
   )
+  const isFirstRenderRef = useRef(true)
+  const lastUpdatedAtRef = useRef(task.updatedAt)
+
+  // A card that stays mounted in the same column (snoozed, edited,
+  // reassigned — anything short of a status change, which remounts it via
+  // the flashToken initializer above) got almost no visual acknowledgement
+  // before. Any change to `updatedAt` while it's on screen re-flashes it.
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false
+      return
+    }
+    if (lastUpdatedAtRef.current === task.updatedAt) return
+    lastUpdatedAtRef.current = task.updatedAt
+    setFlashToken(Date.now())
+  }, [task.updatedAt])
 
   return (
     <div
@@ -66,8 +83,9 @@ export function TaskCard({
           : 'border-black/10 bg-black/[0.015] dark:border-white/10 dark:bg-white/[0.03]'
       }`}
     >
-      {flashOnArrival && (
+      {flashToken !== null && (
         <span
+          key={flashToken}
           aria-hidden="true"
           className="st-flash pointer-events-none absolute inset-0 rounded-lg"
           style={{ ['--st-ring' as string]: FLASH_RING[task.status] }}
