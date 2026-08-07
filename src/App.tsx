@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useAppStore } from './store/useAppStore'
 import { downloadJSON, readFileAsText } from './lib/file'
+import { shouldNudgeExport } from './lib/dates'
 import { TeamBar } from './components/TeamBar'
 import { TaskBoard } from './components/TaskBoard'
 import { TaskDetailDrawer } from './components/TaskDetailDrawer'
@@ -26,6 +27,7 @@ export default function App() {
   const allUsers = useAppStore((s) => s.users)
   const users = allUsers.filter((u) => u.active)
   const taskCount = useAppStore((s) => s.tasks.length)
+  const lastExportAt = useAppStore((s) => s.settings.lastExportAt)
   const currentUserId = useAppStore((s) => s.currentUserId)
   const setCurrentUser = useAppStore((s) => s.setCurrentUser)
   const saveError = useAppStore((s) => s.saveError)
@@ -36,6 +38,10 @@ export default function App() {
 
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  // Not persisted: a nudge that's easy to permanently silence with one click
+  // defeats its own purpose — it's meant to keep surfacing until you actually export.
+  const [exportNudgeDismissed, setExportNudgeDismissed] = useState(false)
+  const showExportNudge = shouldNudgeExport(lastExportAt, taskCount > 0) && !exportNudgeDismissed
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false)
   const [viewTab, setViewTab] = useState<ViewTab>('board')
@@ -173,6 +179,27 @@ export default function App() {
         <div className="st-rise mb-6 rounded-md border border-black/15 bg-black/[0.03] px-4 py-2 text-sm dark:border-white/15 dark:bg-white/5">
           {importMessage}
           <button className="ml-3 underline" onClick={() => setImportMessage(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {showExportNudge && (
+        <div className="st-rise mb-6 flex flex-wrap items-center gap-3 rounded-md border border-black/15 bg-black/[0.03] px-4 py-2 text-sm dark:border-white/15 dark:bg-white/5">
+          <span>
+            This data lives only in this browser — nowhere else. Export a backup so a cleared cache or a new
+            machine can't take it with it.
+          </span>
+          <button
+            onClick={handleExport}
+            className="shrink-0 rounded-md border border-black/20 bg-black/5 px-2.5 py-1 text-xs hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
+          >
+            Export JSON
+          </button>
+          <button
+            onClick={() => setExportNudgeDismissed(true)}
+            className="ml-auto shrink-0 text-xs text-black/50 underline hover:text-black dark:text-white/50 dark:hover:text-white"
+          >
             Dismiss
           </button>
         </div>

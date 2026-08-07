@@ -55,4 +55,22 @@ describe('migrate', () => {
     expect(result.auditLog).toEqual([])
     expect(result.settings).toEqual(createEmptyState().settings)
   })
+
+  it('migrates v1 to v2: drops the unused miro scaffolding, adds lastExportAt, keeps lastDigestAt (PLAN-V2 P1/P4.3)', () => {
+    const v1 = {
+      schemaVersion: 1,
+      users: [{ id: 'u_1' }],
+      tasks: [{ id: 't_1' }],
+      auditLog: [],
+      settings: { lastDigestAt: '2026-08-01T00:00:00.000Z', miro: { enabled: true, boardId: 'board_123' } },
+    }
+
+    const result = migrate(v1)
+
+    expect(result.schemaVersion).toBe(2)
+    expect(result.settings).toEqual({ lastDigestAt: '2026-08-01T00:00:00.000Z', lastExportAt: null })
+    expect('miro' in result.settings).toBe(false)
+    expect(result.users).toEqual(v1.users)
+    expect(result.tasks).toEqual(v1.tasks)
+  })
 })

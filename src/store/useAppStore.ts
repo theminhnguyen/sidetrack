@@ -561,8 +561,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   exportJSON: () => {
-    const { users, tasks, auditLog, settings, schemaVersion } = get()
-    return JSON.stringify({ schemaVersion, users, tasks, auditLog, settings }, null, 2)
+    // Recorded so the UI can nudge "you haven't backed up in a while" — the
+    // only way to know a real export happened, not just that the button exists.
+    const state = get()
+    const settings = { ...state.settings, lastExportAt: nowTimestamp() }
+    const next = { ...state, settings }
+    set(next)
+    persist(next)
+    return JSON.stringify(
+      { schemaVersion: next.schemaVersion, users: next.users, tasks: next.tasks, auditLog: next.auditLog, settings: next.settings },
+      null,
+      2,
+    )
   },
 
   previewImport: (json) => {

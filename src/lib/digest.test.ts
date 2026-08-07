@@ -8,7 +8,7 @@ const BEFORE_SINCE = '2026-07-15T00:00:00.000Z'
 const AFTER_SINCE = '2026-07-25T00:00:00.000Z'
 
 function stateWith(overrides: Partial<ReturnType<typeof createEmptyState>>) {
-  return { ...createEmptyState(), settings: { lastDigestAt: SINCE, miro: { enabled: false, boardId: null } }, ...overrides }
+  return { ...createEmptyState(), settings: { lastDigestAt: SINCE, lastExportAt: null }, ...overrides }
 }
 
 describe('buildDigest — first run', () => {

@@ -1,4 +1,4 @@
-import { type AppState, CURRENT_SCHEMA_VERSION, createEmptyState } from '../types'
+import { type AppState, type Timestamp, CURRENT_SCHEMA_VERSION, createEmptyState } from '../types'
 
 export interface StorageAdapter {
   load(): AppState
@@ -7,12 +7,30 @@ export interface StorageAdapter {
 
 /**
  * Migration seam: each entry moves state from its key version to key+1.
- * Empty today because schemaVersion 1 is the only version that has ever
- * existed — add a `1: (state) => ({ ...state, schemaVersion: 2, ... })`
- * entry here the day the shape changes, instead of writing an ad-hoc
- * one-off migration under time pressure.
  */
-const migrations: Record<number, (state: AppState) => AppState> = {}
+const migrations: Record<number, (state: AppState) => AppState> = {
+  // v1 -> v2: dropped the unused `miro` scaffolding (never had a consumer,
+  // see PLAN-V2.md P4.3) and added `lastExportAt` to drive the "back this
+  // up" nudge (P1). `lastDigestAt` is the only field that carries over.
+  1: (state) => ({
+    ...state,
+    schemaVersion: 2,
+    settings: { lastDigestAt: state.settings?.lastDigestAt ?? null, lastExportAt: null },
+  }),
+}
+
+function pickTimestamp(value: unknown): Timestamp | null {
+  return typeof value === 'string' ? value : null
+}
+
+/** Rebuilt field-by-field so a stray key from an older/hand-edited shape (e.g. v1's `miro`) can never leak through. */
+function normalizeSettings(raw: unknown): AppState['settings'] {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<AppState['settings']>
+  return {
+    lastDigestAt: pickTimestamp(s.lastDigestAt),
+    lastExportAt: pickTimestamp(s.lastExportAt),
+  }
+}
 
 /**
  * Fills in any top-level field this app depends on but that a hand-edited,
@@ -29,7 +47,7 @@ function normalize(state: Partial<AppState>): AppState {
     users: Array.isArray(state.users) ? state.users : empty.users,
     tasks: Array.isArray(state.tasks) ? state.tasks : empty.tasks,
     auditLog: Array.isArray(state.auditLog) ? state.auditLog : empty.auditLog,
-    settings: state.settings && typeof state.settings === 'object' ? state.settings : empty.settings,
+    settings: normalizeSettings(state.settings),
   }
 }
 

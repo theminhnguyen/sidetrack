@@ -159,6 +159,6 @@ export function seedState(): AppState {
     users,
     tasks,
     auditLog: [],
-    settings: { lastDigestAt: null, miro: { enabled: false, boardId: null } },
+    settings: { lastDigestAt: null, lastExportAt: null },
   }
 }

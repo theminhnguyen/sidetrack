@@ -70,14 +70,10 @@ export interface AuditLogEntry {
   payload: Record<string, unknown>
 }
 
-export interface MiroSettings {
-  enabled: boolean
-  boardId: string | null
-}
-
 export interface AppSettings {
   lastDigestAt: Timestamp | null
-  miro: MiroSettings
+  /** Set by exportJSON — drives the "back this up" nudge. See PLAN-V2.md P1. */
+  lastExportAt: Timestamp | null
 }
 
 export interface AppState {
@@ -88,7 +84,7 @@ export interface AppState {
   settings: AppSettings
 }
 
-export const CURRENT_SCHEMA_VERSION = 1
+export const CURRENT_SCHEMA_VERSION = 2
 
 export function createEmptyState(): AppState {
   return {
@@ -98,7 +94,7 @@ export function createEmptyState(): AppState {
     auditLog: [],
     settings: {
       lastDigestAt: null,
-      miro: { enabled: false, boardId: null },
+      lastExportAt: null,
     },
   }
 }

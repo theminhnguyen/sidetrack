@@ -19,7 +19,9 @@ All MVP phases from the plan are implemented:
 - Light/dark mode
 - Deployed to GitHub Pages via GitHub Actions
 
-Not built: Miro export (explicitly deferred in the plan — MVP is complete without it).
+See [PLAN-V2.md](./PLAN-V2.md) for the post-launch review and what it found —
+data-integrity fixes to the cascade/import flow, the local-storage-visibility
+nudge below, and what's still open.
 
 ## Development
 
@@ -31,4 +33,8 @@ npm run build    # production build
 ```
 
 Data is stored in the browser's localStorage; use the Export/Import JSON
-buttons to back up or move data between browsers.
+buttons to back up or move data between browsers. **This is the only copy —
+it lives in this one browser profile and nowhere else.** Clearing site data,
+switching browsers, or moving to a different machine loses it unless you've
+exported first. The app nudges you to export if a board with tasks hasn't
+been backed up in 14 days; there's no cloud sync and, by design, no backend.

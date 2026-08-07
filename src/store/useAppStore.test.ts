@@ -298,6 +298,23 @@ describe('previewImport (PLAN-V2 P0.3)', () => {
   })
 })
 
+describe('exportJSON — records lastExportAt (PLAN-V2 P1)', () => {
+  it('sets settings.lastExportAt as a side effect, and the returned JSON reflects it', () => {
+    // Deliberately doesn't assert the "before" value is null — this store is
+    // a shared singleton across the file's tests (see other tests' use of
+    // deltas rather than absolute counts), so only "exportJSON moves it
+    // forward" is safe to assert regardless of execution order.
+    const before = useAppStore.getState().settings.lastExportAt
+
+    const json = useAppStore.getState().exportJSON()
+
+    const after = useAppStore.getState().settings.lastExportAt
+    expect(after).not.toBeNull()
+    expect(after).not.toBe(before)
+    expect(JSON.parse(json).settings.lastExportAt).toBe(after)
+  })
+})
+
 describe('addTask — default start date', () => {
   beforeEach(() => {
     vi.useFakeTimers()

@@ -1,5 +1,5 @@
 import { addDays, addWeeks, differenceInCalendarDays, format, subDays } from 'date-fns'
-import type { DateOnly } from '../types'
+import type { DateOnly, Timestamp } from '../types'
 
 /**
  * Parses a YYYY-MM-DD string at local noon instead of UTC midnight.
@@ -65,4 +65,14 @@ export function timestampDaysAgo(days: number): string {
 
 export function formatTimestamp(timestamp: string): string {
   return format(new Date(timestamp), 'MMM d')
+}
+
+/** Everything lives only in this browser's storage — see PLAN-V2.md P1. */
+const EXPORT_NUDGE_DAYS = 14
+
+/** Should the "back this up" nudge show? Never for an empty board, always if nothing's ever been exported. */
+export function shouldNudgeExport(lastExportAt: Timestamp | null, hasTasks: boolean): boolean {
+  if (!hasTasks) return false
+  if (!lastExportAt) return true
+  return differenceInCalendarDays(new Date(), new Date(lastExportAt)) >= EXPORT_NUDGE_DAYS
 }
