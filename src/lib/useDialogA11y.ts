@@ -3,23 +3,58 @@ import { useEffect, useRef, type RefObject } from 'react'
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+/**
+ * Asks the question directly (is this painted?) rather than inferring it from
+ * `offsetParent`, which is a layout side-channel: it is always null in a
+ * layout-less environment like jsdom, which would silently disable the whole
+ * trap under test, and it is also null for fixed-position elements in some
+ * engines.
+ */
+function isVisible(el: HTMLElement): boolean {
+  if (el.hidden || el.getAttribute('aria-hidden') === 'true') return false
+  const style = getComputedStyle(el)
+  return style.display !== 'none' && style.visibility !== 'hidden'
+}
+
 function focusableIn(container: HTMLElement): HTMLElement[] {
   // Recomputed on every Tab press rather than cached at mount — a dialog's
   // content changes as the user interacts with it (e.g. TaskDetailDrawer's
   // reason boxes appear/disappear), so a one-time snapshot would go stale.
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) => el.offsetParent !== null,
-  )
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isVisible)
+}
+
+interface OpenDialog {
+  id: symbol
+  getContainer: () => HTMLElement | null
 }
 
 /**
- * Every currently-open dialog, in open order — lets Escape close only the
- * topmost one. Without this, opening the delete-confirmation Modal from
- * inside the TaskDetailDrawer meant a single Escape press closed *both*:
- * each dialog owns a document-level keydown listener, and both fire on the
- * same keypress since nothing else scopes them to "the one currently on top."
+ * Every currently-open dialog — lets Escape close only the one on top.
+ * Without this, opening the delete-confirmation Modal from inside the
+ * TaskDetailDrawer meant a single Escape press closed *both*: each dialog
+ * owns a document-level keydown listener, and both fire on the same keypress.
  */
-let dialogStack: symbol[] = []
+let openDialogs: OpenDialog[] = []
+
+/**
+ * Mount order alone is not enough to decide what's on top: React runs child
+ * effects before parent effects, so a dialog rendered inside another one
+ * registers *first* and would make the outer dialog look topmost. Containment
+ * is therefore checked before falling back to "most recently opened".
+ */
+function topmostDialogId(): symbol | null {
+  const withoutAncestors = openDialogs.filter((dialog) => {
+    const el = dialog.getContainer()
+    if (!el) return true
+    return !openDialogs.some((other) => {
+      if (other.id === dialog.id) return false
+      const otherEl = other.getContainer()
+      return otherEl !== null && el.contains(otherEl)
+    })
+  })
+  const pool = withoutAncestors.length > 0 ? withoutAncestors : openDialogs
+  return pool[pool.length - 1]?.id ?? null
+}
 
 /**
  * Standard modal/dialog accessibility, shared by Modal and Drawer (see
@@ -33,7 +68,7 @@ export function useDialogA11y(containerRef: RefObject<HTMLElement | null>, onClo
 
   useEffect(() => {
     const id = idRef.current!
-    dialogStack.push(id)
+    openDialogs.push({ id, getContainer: () => containerRef.current })
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
 
     const container = containerRef.current
@@ -43,7 +78,7 @@ export function useDialogA11y(containerRef: RefObject<HTMLElement | null>, onClo
     }
 
     function onKeyDown(e: KeyboardEvent) {
-      const isTopmost = dialogStack[dialogStack.length - 1] === id
+      const isTopmost = topmostDialogId() === id
 
       if (e.key === 'Escape') {
         if (isTopmost) onClose()
@@ -68,7 +103,7 @@ export function useDialogA11y(containerRef: RefObject<HTMLElement | null>, onClo
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      dialogStack = dialogStack.filter((stackId) => stackId !== id)
+      openDialogs = openDialogs.filter((dialog) => dialog.id !== id)
       previouslyFocused?.focus()
     }
     // containerRef is a ref (stable identity), not reactive data — only
