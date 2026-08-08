@@ -164,10 +164,15 @@ function parseImportCandidate(json: string): { ok: true; parsed: Partial<AppStat
 
 function loadInitialState(): AppState {
   const stored = localStorageAdapter.load()
-  if (stored.users.length === 0 && stored.tasks.length === 0) {
-    return seedState()
-  }
-  return stored
+  if (stored.users.length > 0 || stored.tasks.length > 0) return stored
+
+  // Commit the seed straight away. Left unsaved it was regenerated on every
+  // load — with freshly minted ids each time — so anything holding an id
+  // across a reload silently dangled. The "acting as" choice was the first
+  // casualty: it stored a perfectly valid id that no longer matched anyone.
+  const seeded = seedState()
+  localStorageAdapter.save(seeded)
+  return seeded
 }
 
 const initialState = loadInitialState()

@@ -386,6 +386,30 @@ describe('persistence', () => {
   })
 })
 
+describe('seeding — a demo board must still be stable data', () => {
+  it('persists the seed on first load, so its generated ids survive a reload', async () => {
+    // Regression, caught on the live site: an unsaved seed was rebuilt on
+    // every load with brand-new random ids. Anything referencing an id across
+    // a reload dangled — the "acting as" choice pointed at a user that, by
+    // the time the page came back, no longer existed under that id.
+    resetTestStorage()
+    vi.resetModules()
+
+    await import('./useAppStore')
+    await new Promise((resolve) => setTimeout(resolve, 600)) // adapter debounce
+
+    const raw = readTestStorage('sidetrack:state')
+    expect(raw).not.toBeNull()
+    const seeded = JSON.parse(raw!)
+    expect(seeded.users.length).toBeGreaterThan(0)
+
+    // A second load must reuse those exact ids rather than minting new ones.
+    vi.resetModules()
+    const { useAppStore: reloaded } = await import('./useAppStore')
+    expect(reloaded.getState().users.map((u) => u.id)).toEqual(seeded.users.map((u: { id: string }) => u.id))
+  })
+})
+
 describe('setCurrentUser — the audit author must outlive a reload', () => {
   it('writes the choice to its own key, so a reload can restore who is signing edits', () => {
     const user = useAppStore.getState().addUser('Alex Chen')
