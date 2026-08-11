@@ -369,6 +369,97 @@ describe('shiftMilestone (PLAN-V2 P2.2)', () => {
   })
 })
 
+describe('addMilestone / removeMilestone — audit trail', () => {
+  // The only two structural milestone mutations that used to write nothing
+  // to History — every other change (a task itself, a status, a deadline
+  // shift) leaves a trace, so an added or removed milestone silently didn't.
+  // That silence is what made "did it even work?" a reasonable question.
+  it('logs milestone_added and returns the created milestone', () => {
+    const id = freshTask('2026-08-15')
+    const before = useAppStore.getState().auditLog.length
+
+    const created = useAppStore.getState().addMilestone(id, 'Draft ready', '2026-08-01')
+
+    expect(created.title).toBe('Draft ready')
+    expect(useAppStore.getState().tasks.find((t) => t.id === id)!.milestones).toEqual([created])
+    const added = useAppStore.getState().auditLog.slice(before)
+    const entry = added.find((e) => e.type === 'milestone_added')
+    expect(entry).toBeDefined()
+    expect(entry?.payload.title).toBe('Draft ready')
+  })
+
+  it('logs milestone_removed with the title it had, since it will no longer be in the task', () => {
+    const id = freshTask('2026-08-15')
+    const milestone = useAppStore.getState().addMilestone(id, 'Draft ready', '2026-08-01')
+    const before = useAppStore.getState().auditLog.length
+
+    useAppStore.getState().removeMilestone(id, milestone.id)
+
+    expect(useAppStore.getState().tasks.find((t) => t.id === id)!.milestones).toEqual([])
+    const added = useAppStore.getState().auditLog.slice(before)
+    const entry = added.find((e) => e.type === 'milestone_removed')
+    expect(entry?.payload.title).toBe('Draft ready')
+  })
+})
+
+describe('renameMilestone', () => {
+  it('renames the milestone without touching the audit log — a cosmetic edit, like the task\'s own title', () => {
+    const id = freshTask('2026-08-15')
+    const milestone = useAppStore.getState().addMilestone(id, 'Draft ready', '2026-08-01')
+    const before = useAppStore.getState().auditLog.length
+
+    useAppStore.getState().renameMilestone(id, milestone.id, 'First draft ready')
+
+    const updated = useAppStore.getState().tasks.find((t) => t.id === id)!.milestones[0]
+    expect(updated.title).toBe('First draft ready')
+    expect(useAppStore.getState().auditLog.length).toBe(before)
+  })
+
+  it('ignores a blank title rather than blanking out the milestone', () => {
+    const id = freshTask('2026-08-15')
+    const milestone = useAppStore.getState().addMilestone(id, 'Draft ready', '2026-08-01')
+
+    useAppStore.getState().renameMilestone(id, milestone.id, '   ')
+
+    expect(useAppStore.getState().tasks.find((t) => t.id === id)!.milestones[0].title).toBe('Draft ready')
+  })
+})
+
+describe('addComment / removeComment', () => {
+  it('trims the body and attributes the comment to whoever is currently acting', () => {
+    const id = freshTask('2026-08-15')
+    const user = useAppStore.getState().addUser('Priya Nair')
+    useAppStore.getState().setCurrentUser(user.id)
+
+    useAppStore.getState().addComment(id, '  Trials starting Monday.  ')
+
+    const comments = useAppStore.getState().tasks.find((t) => t.id === id)!.comments
+    expect(comments).toHaveLength(1)
+    expect(comments[0].body).toBe('Trials starting Monday.')
+    expect(comments[0].authorId).toBe(user.id)
+  })
+
+  it('ignores an empty or whitespace-only comment', () => {
+    const id = freshTask('2026-08-15')
+
+    useAppStore.getState().addComment(id, '   ')
+
+    expect(useAppStore.getState().tasks.find((t) => t.id === id)!.comments).toEqual([])
+  })
+
+  it('removes exactly the targeted comment, leaving the others', () => {
+    const id = freshTask('2026-08-15')
+    useAppStore.getState().addComment(id, 'First')
+    useAppStore.getState().addComment(id, 'Second')
+    const [first, second] = useAppStore.getState().tasks.find((t) => t.id === id)!.comments
+
+    useAppStore.getState().removeComment(id, first.id)
+
+    const remaining = useAppStore.getState().tasks.find((t) => t.id === id)!.comments
+    expect(remaining).toEqual([second])
+  })
+})
+
 describe('persistence', () => {
   it('never writes session-only fields into the exported state blob', () => {
     useAppStore.getState().addUser('Alex Chen')

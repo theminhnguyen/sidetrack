@@ -20,6 +20,7 @@ export function makeTask(overrides: Partial<Task> = {}): Task {
     dueDate: '2026-07-15',
     completedAt: null,
     milestones: [],
+    comments: [],
     dependsOn: [],
     blockedReason: null,
     snoozeCount: 0,

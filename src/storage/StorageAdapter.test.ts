@@ -56,7 +56,7 @@ describe('migrate', () => {
     expect(result.settings).toEqual(createEmptyState().settings)
   })
 
-  it('migrates v1 to v2: drops the unused miro scaffolding, adds lastExportAt, keeps lastDigestAt (PLAN-V2 P1/P4.3)', () => {
+  it('migrates v1 all the way to the current schema: drops the unused miro scaffolding, adds lastExportAt, keeps lastDigestAt (PLAN-V2 P1/P4.3)', () => {
     const v1 = {
       schemaVersion: 1,
       users: [{ id: 'u_1' }],
@@ -67,10 +67,33 @@ describe('migrate', () => {
 
     const result = migrate(v1)
 
-    expect(result.schemaVersion).toBe(2)
+    // migrate() always chains every step up to CURRENT_SCHEMA_VERSION, not
+    // just the next one — pinning this to a literal would silently stop
+    // testing the chain the moment a new step is added.
+    expect(result.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
     expect(result.settings).toEqual({ lastDigestAt: '2026-08-01T00:00:00.000Z', lastExportAt: null })
     expect('miro' in result.settings).toBe(false)
     expect(result.users).toEqual(v1.users)
-    expect(result.tasks).toEqual(v1.tasks)
+    // Picked up along the way by the v2 -> v3 step below.
+    expect(result.tasks).toEqual([{ id: 't_1', comments: [] }])
+  })
+
+  it('migrates v2 to v3: backfills an empty comments list onto every existing task', () => {
+    const v2 = {
+      schemaVersion: 2,
+      users: [],
+      tasks: [{ id: 't_1' }, { id: 't_2', comments: [{ id: 'c_1' }] }],
+      auditLog: [],
+      settings: { lastDigestAt: null, lastExportAt: null },
+    }
+
+    const result = migrate(v2)
+
+    expect(result.schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
+    // A task missing the field entirely gets a fresh empty array...
+    expect(result.tasks[0]).toEqual({ id: 't_1', comments: [] })
+    // ...but a task that already has comments (e.g. a file already on v3
+    // read by mistake through this step) is left untouched.
+    expect(result.tasks[1]).toEqual({ id: 't_2', comments: [{ id: 'c_1' }] })
   })
 })

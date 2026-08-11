@@ -3,6 +3,7 @@ import {
   type AppState,
   type AuditEventType,
   type CapacityStatus,
+  type Comment,
   type Milestone,
   type Task,
   type TaskStatus,
@@ -69,10 +70,14 @@ interface AppStore extends AppState {
   setDependsOn: (id: string, dependsOn: string[]) => void
   deleteTask: (id: string) => void
 
-  addMilestone: (taskId: string, title: string, dueDate: string) => void
+  addMilestone: (taskId: string, title: string, dueDate: string) => Milestone
   toggleMilestone: (taskId: string, milestoneId: string) => void
+  renameMilestone: (taskId: string, milestoneId: string, title: string) => void
   shiftMilestone: (taskId: string, milestoneId: string, newDate: string, reason: string) => void
   removeMilestone: (taskId: string, milestoneId: string) => void
+
+  addComment: (taskId: string, body: string) => void
+  removeComment: (taskId: string, commentId: string) => void
 
   shiftDueDate: (
     id: string,
@@ -301,6 +306,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       dueDate,
       completedAt: null,
       milestones: [],
+      comments: [],
       dependsOn: input.dependsOn ?? [],
       blockedReason: null,
       snoozeCount: 0,
@@ -402,12 +408,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   addMilestone: (taskId, title, dueDate) => {
     const milestone: Milestone = { id: createId('m'), title, dueDate, done: false }
-    const tasks = get().tasks.map((t) =>
+    const state = get()
+    const tasks = state.tasks.map((t) =>
       t.id === taskId ? { ...t, milestones: [...t.milestones, milestone], updatedAt: nowTimestamp() } : t,
     )
-    const next = { ...get(), tasks }
+    const auditLog = [...state.auditLog]
+    logEvent(auditLog, taskId, state.currentUserId, 'milestone_added', { title })
+    const next = { ...state, tasks, auditLog }
     set(next)
     persist(next)
+    return milestone
   },
 
   toggleMilestone: (taskId, milestoneId) => {
@@ -420,6 +430,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     })
     const next = { ...get(), tasks }
+    set(next)
+    persist(next)
+  },
+
+  renameMilestone: (taskId, milestoneId, title) => {
+    const state = get()
+    const task = state.tasks.find((t) => t.id === taskId)
+    const milestone = task?.milestones.find((m) => m.id === milestoneId)
+    if (!task || !milestone || !title.trim() || milestone.title === title) return
+
+    const tasks = state.tasks.map((t) => {
+      if (t.id !== taskId) return t
+      return {
+        ...t,
+        milestones: t.milestones.map((m) => (m.id === milestoneId ? { ...m, title } : m)),
+        updatedAt: nowTimestamp(),
+      }
+    })
+    const next = { ...state, tasks }
     set(next)
     persist(next)
   },
@@ -451,12 +480,40 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   removeMilestone: (taskId, milestoneId) => {
-    const tasks = get().tasks.map((t) =>
+    const state = get()
+    const task = state.tasks.find((t) => t.id === taskId)
+    const milestone = task?.milestones.find((m) => m.id === milestoneId)
+    const tasks = state.tasks.map((t) =>
       t.id === taskId
         ? { ...t, milestones: t.milestones.filter((m) => m.id !== milestoneId), updatedAt: nowTimestamp() }
         : t,
     )
-    const next = { ...get(), tasks }
+    const auditLog = [...state.auditLog]
+    if (milestone) logEvent(auditLog, taskId, state.currentUserId, 'milestone_removed', { title: milestone.title })
+    const next = { ...state, tasks, auditLog }
+    set(next)
+    persist(next)
+  },
+
+  addComment: (taskId, body) => {
+    const trimmed = body.trim()
+    if (!trimmed) return
+    const state = get()
+    const comment: Comment = { id: createId('c'), body: trimmed, authorId: state.currentUserId, createdAt: nowTimestamp() }
+    const tasks = state.tasks.map((t) =>
+      t.id === taskId ? { ...t, comments: [...t.comments, comment], updatedAt: nowTimestamp() } : t,
+    )
+    const next = { ...state, tasks }
+    set(next)
+    persist(next)
+  },
+
+  removeComment: (taskId, commentId) => {
+    const state = get()
+    const tasks = state.tasks.map((t) =>
+      t.id === taskId ? { ...t, comments: t.comments.filter((c) => c.id !== commentId), updatedAt: nowTimestamp() } : t,
+    )
+    const next = { ...state, tasks }
     set(next)
     persist(next)
   },

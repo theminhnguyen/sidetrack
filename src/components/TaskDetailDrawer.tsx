@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import type { TaskSize, TaskStatus } from '../types'
+import type { Milestone, TaskSize, TaskStatus } from '../types'
 import { Drawer } from './Drawer'
 import { Modal } from './Modal'
 import { DependencyPicker } from './DependencyPicker'
 import { AuditLog } from './AuditLog'
 import { SnoozeButtons } from './SnoozeButton'
-import { formatDateOnly, isAfterDateOnly, today } from '../lib/dates'
+import { formatDateOnly, formatTimestamp, isAfterDateOnly, today } from '../lib/dates'
 import { findCycle, getDirectDependents, isConflicted } from '../lib/dependencyGraph'
 
 const SIZES: TaskSize[] = ['S', 'M', 'L', 'XL']
@@ -36,8 +36,11 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const deleteTask = useAppStore((s) => s.deleteTask)
   const addMilestone = useAppStore((s) => s.addMilestone)
   const toggleMilestone = useAppStore((s) => s.toggleMilestone)
+  const renameMilestone = useAppStore((s) => s.renameMilestone)
   const shiftMilestone = useAppStore((s) => s.shiftMilestone)
   const removeMilestone = useAppStore((s) => s.removeMilestone)
+  const addComment = useAppStore((s) => s.addComment)
+  const removeComment = useAppStore((s) => s.removeComment)
   const shiftDueDate = useAppStore((s) => s.shiftDueDate)
   const shiftStartDate = useAppStore((s) => s.shiftStartDate)
 
@@ -57,6 +60,7 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
   const [dueDateReason, setDueDateReason] = useState('')
   const [newMilestoneTitle, setNewMilestoneTitle] = useState('')
   const [newMilestoneDate, setNewMilestoneDate] = useState(today())
+  const [newCommentBody, setNewCommentBody] = useState('')
   const [dependencyError, setDependencyError] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
@@ -76,6 +80,9 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
     setDueDateReason('')
     setBlockReason(null)
     setDependencyError(null)
+    setNewMilestoneTitle('')
+    setNewMilestoneDate(today())
+    setNewCommentBody('')
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id])
 
@@ -344,28 +351,14 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Milestones</h3>
         <ul className="space-y-1.5">
           {task.milestones.map((m) => (
-            <li key={m.id} className="flex items-center gap-2 text-sm">
-              <MilestoneCheckbox done={m.done} onToggle={() => toggleMilestone(task.id, m.id)} label={m.title} />
-              <span
-                className={`flex-1 transition-colors duration-300 ${m.done ? 'text-black/40 line-through dark:text-white/40' : ''}`}
-              >
-                {m.title}
-              </span>
-              <input
-                type="date"
-                value={m.dueDate}
-                onChange={(e) => e.target.value && shiftMilestone(task.id, m.id, e.target.value, '')}
-                aria-label={`Due date for milestone ${m.title}`}
-                className="rounded border border-transparent bg-transparent px-1 text-xs text-black/40 outline-none hover:border-black/15 focus:border-black/30 dark:text-white/40 dark:hover:border-white/15 dark:focus:border-white/30"
-              />
-              <button
-                onClick={() => removeMilestone(task.id, m.id)}
-                className="text-black/30 hover:text-rose-600 dark:text-white/30 dark:hover:text-rose-400"
-                aria-label={`Remove milestone ${m.title}`}
-              >
-                ✕
-              </button>
-            </li>
+            <MilestoneRow
+              key={m.id}
+              milestone={m}
+              onToggle={() => toggleMilestone(task.id, m.id)}
+              onRename={(title) => renameMilestone(task.id, m.id, title)}
+              onShiftDate={(newDate) => shiftMilestone(task.id, m.id, newDate, '')}
+              onRemove={() => removeMilestone(task.id, m.id)}
+            />
           ))}
         </ul>
         <form
@@ -407,6 +400,63 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         )}
         {dependencyError && <p className="mb-2 text-xs text-rose-600 dark:text-rose-300/90">{dependencyError}</p>}
         <DependencyPicker allTasks={allTasks} selfId={task.id} value={task.dependsOn} onChange={handleDependsOnChange} />
+      </div>
+
+      <div className="mt-5">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">Comments</h3>
+        {task.comments.length === 0 ? (
+          <p className="text-xs text-black/40 dark:text-white/40">No comments yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {task.comments.map((c) => (
+              <li
+                key={c.id}
+                className="st-pop group rounded-md border border-black/10 bg-black/[0.02] px-2.5 py-1.5 text-sm dark:border-white/10 dark:bg-white/[0.03]"
+              >
+                <div className="mb-0.5 flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-black/70 dark:text-white/70">
+                    {users.find((u) => u.id === c.authorId)?.name ?? 'Someone'}
+                  </span>
+                  <span className="flex items-center gap-2 text-[11px] text-black/35 dark:text-white/35">
+                    {formatTimestamp(c.createdAt)}
+                    <button
+                      onClick={() => removeComment(task.id, c.id)}
+                      className="opacity-0 hover:text-rose-600 group-hover:opacity-100 dark:hover:text-rose-400"
+                      aria-label="Delete comment"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                </div>
+                <p className="whitespace-pre-wrap text-black/80 dark:text-white/80">{c.body}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!newCommentBody.trim()) return
+            addComment(task.id, newCommentBody)
+            setNewCommentBody('')
+          }}
+          className="mt-2 flex gap-2"
+        >
+          <textarea
+            value={newCommentBody}
+            onChange={(e) => setNewCommentBody(e.target.value)}
+            placeholder="Leave a status update…"
+            rows={2}
+            className={`flex-1 resize-none ${INPUT}`}
+          />
+          <button
+            type="submit"
+            disabled={!newCommentBody.trim()}
+            className="self-end rounded-md border border-black/15 px-2 py-1.5 text-xs hover:bg-black/5 disabled:opacity-40 dark:border-white/15 dark:hover:bg-white/10"
+          >
+            Comment
+          </button>
+        </form>
       </div>
 
       <div className="mt-5">
@@ -453,6 +503,73 @@ export function TaskDetailDrawer({ taskId, onClose }: { taskId: string; onClose:
         </Modal>
       )}
     </Drawer>
+  )
+}
+
+/**
+ * Title is a local draft committed on blur, same reasoning as the task's own
+ * title field: writing the store on every keystroke would spam re-renders
+ * and, via the store's `updatedAt` bump, its own re-sync effects. Re-synced
+ * from the prop (not just on mount) so a successful commit reflects the
+ * trimmed value the store actually saved, not whatever whitespace was typed.
+ */
+function MilestoneRow({
+  milestone,
+  onToggle,
+  onRename,
+  onShiftDate,
+  onRemove,
+}: {
+  milestone: Milestone
+  onToggle: () => void
+  onRename: (title: string) => void
+  onShiftDate: (newDate: string) => void
+  onRemove: () => void
+}) {
+  const [title, setTitle] = useState(milestone.title)
+
+  useEffect(() => {
+    setTitle(milestone.title)
+  }, [milestone.title])
+
+  function commit() {
+    if (!title.trim()) {
+      setTitle(milestone.title)
+      return
+    }
+    onRename(title.trim())
+  }
+
+  return (
+    <li className="st-pop flex items-center gap-2 text-sm">
+      <MilestoneCheckbox done={milestone.done} onToggle={onToggle} label={milestone.title} />
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        }}
+        aria-label="Milestone name"
+        className={`flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 outline-none transition-colors duration-300 hover:border-black/15 focus:border-black/30 dark:hover:border-white/15 dark:focus:border-white/30 ${
+          milestone.done ? 'text-black/40 line-through dark:text-white/40' : ''
+        }`}
+      />
+      <input
+        type="date"
+        value={milestone.dueDate}
+        onChange={(e) => e.target.value && onShiftDate(e.target.value)}
+        aria-label={`Due date for milestone ${milestone.title}`}
+        className="rounded border border-transparent bg-transparent px-1 text-xs text-black/40 outline-none hover:border-black/15 focus:border-black/30 dark:text-white/40 dark:hover:border-white/15 dark:focus:border-white/30"
+      />
+      <button
+        onClick={onRemove}
+        className="text-black/30 hover:text-rose-600 dark:text-white/30 dark:hover:text-rose-400"
+        aria-label={`Remove milestone ${milestone.title}`}
+      >
+        ✕
+      </button>
+    </li>
   )
 }
 

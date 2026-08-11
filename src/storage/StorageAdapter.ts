@@ -17,6 +17,13 @@ const migrations: Record<number, (state: AppState) => AppState> = {
     schemaVersion: 2,
     settings: { lastDigestAt: state.settings?.lastDigestAt ?? null, lastExportAt: null },
   }),
+  // v2 -> v3: added per-task free-text comments (Jira-style status notes,
+  // separate from the audit log). Every pre-existing task simply starts empty.
+  2: (state) => ({
+    ...state,
+    schemaVersion: 3,
+    tasks: Array.isArray(state.tasks) ? state.tasks.map((t) => ({ ...t, comments: t.comments ?? [] })) : state.tasks,
+  }),
 }
 
 function pickTimestamp(value: unknown): Timestamp | null {

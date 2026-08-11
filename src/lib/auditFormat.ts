@@ -56,6 +56,12 @@ export function formatAuditEntry(entry: AuditLogEntry, users: User[], task?: Tas
         : `${who} moved milestone "${title}" from ${from} to ${to}`
     }
 
+    case 'milestone_added':
+      return `${who} added milestone "${p.title as string}"`
+
+    case 'milestone_removed':
+      return `${who} removed milestone "${p.title as string}"`
+
     case 'assignee_changed': {
       const from = nameOf(p.from as string | null, users)
       const to = nameOf(p.to as string | null, users)

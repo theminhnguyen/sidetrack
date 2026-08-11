@@ -34,6 +34,18 @@ export interface Milestone {
   done: boolean
 }
 
+/** A free-text status note, à la Jira comments — separate from the audit log,
+ *  which records structural changes, not commentary. Deletable (by anyone,
+ *  same single-actor-at-a-time model as the rest of this app) but not
+ *  editable — correcting one is a delete-and-repost, which keeps the model
+ *  simple and avoids a silent "edited" history nobody asked for. */
+export interface Comment {
+  id: string
+  body: string
+  authorId: string | null
+  createdAt: Timestamp
+}
+
 export interface Task {
   id: string
   title: string
@@ -46,6 +58,7 @@ export interface Task {
   dueDate: DateOnly
   completedAt: Timestamp | null
   milestones: Milestone[]
+  comments: Comment[]
   dependsOn: string[]
   blockedReason: string | null
   snoozeCount: number
@@ -58,6 +71,8 @@ export type AuditEventType =
   | 'status_changed'
   | 'deadline_shifted'
   | 'milestone_shifted'
+  | 'milestone_added'
+  | 'milestone_removed'
   | 'assignee_changed'
   | 'capacity_changed'
 
@@ -84,7 +99,7 @@ export interface AppState {
   settings: AppSettings
 }
 
-export const CURRENT_SCHEMA_VERSION = 2
+export const CURRENT_SCHEMA_VERSION = 3
 
 export function createEmptyState(): AppState {
   return {
