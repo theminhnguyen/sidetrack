@@ -16,6 +16,16 @@ import { localStorageAdapter } from '../storage/localStorageAdapter'
 import { migrate } from '../storage/StorageAdapter'
 import { seedState } from '../data/seed'
 import { computeCascadePlan, type CascadeShift } from '../lib/dependencyGraph'
+import {
+  SharedFileSync,
+  clearStoredHandle,
+  getStoredHandle,
+  isFileSystemAccessSupported,
+  pickExistingFile,
+  pickNewFile,
+  storeHandle,
+  verifyPermission,
+} from '../lib/sharedFile'
 
 export const AVATAR_PALETTE = [
   '#7C5CFF', '#22c55e', '#0ea5e9', '#f97316', '#ec4899',
@@ -37,6 +47,30 @@ export interface CascadeSuggestion {
   rootTaskId: string
   rootTitle: string
   plan: CascadeShift[]
+}
+
+export type SharedFileStatus =
+  | 'unsupported' // browser has no File System Access API (Firefox/Safari)
+  | 'disconnected'
+  | 'needs-reconnect' // a remembered handle exists but permission needs a fresh click to re-grant
+  | 'connecting'
+  | 'connected'
+  | 'conflict' // a push found the file changed underneath it; needs a user decision
+  | 'error'
+
+export interface SharedFileState {
+  status: SharedFileStatus
+  name: string | null
+  error: string | null
+  /** Only set while status is 'connecting' for the "join an existing file" flow — the count preview shown before replacing local data. */
+  connectPreview: { userCount: number; taskCount: number } | null
+}
+
+const INITIAL_SHARED_FILE_STATE: SharedFileState = {
+  status: isFileSystemAccessSupported() ? 'disconnected' : 'unsupported',
+  name: null,
+  error: null,
+  connectPreview: null,
 }
 
 interface AppStore extends AppState {
@@ -94,6 +128,25 @@ interface AppStore extends AppState {
   importJSON: (json: string) => { ok: true } | { ok: false; error: string }
 
   setLastDigestAt: (timestamp: string) => void
+
+  sharedFile: SharedFileState
+  /** Opens the "pick an existing file" dialog and, if it looks like a SideTrack file, stages it behind connectPreview for confirmation. */
+  connectSharedFile: () => Promise<void>
+  confirmConnectSharedFile: () => Promise<void>
+  cancelConnectSharedFile: () => void
+  /** For the first person setting one up — seeds the picked file with the current board. */
+  createSharedFile: () => Promise<void>
+  disconnectSharedFile: () => Promise<void>
+  /** Re-grants permission on a remembered handle from a previous session — must run from a click, not on boot. */
+  reconnectSharedFile: () => Promise<void>
+  syncSharedFileNow: () => Promise<void>
+  dismissSharedFileError: () => void
+  /** Conflict resolution: force-write the local board over whatever a teammate just saved. */
+  keepMyVersionInConflict: () => Promise<void>
+  /** Conflict resolution: discard local changes since the last sync and adopt the file's current content. */
+  takeTheirVersionInConflict: () => void
+  /** Used internally by the sharedFile sync wiring at the bottom of this module — not normally called from UI. */
+  applySharedFileText: (text: string) => void
 }
 
 /**
@@ -103,6 +156,20 @@ interface AppStore extends AppState {
  * a stale cascade suggestion, or a replayed celebration would otherwise be one
  * reordered line away from resurfacing on load.
  */
+function serializeState(state: AppState): string {
+  return JSON.stringify(
+    { schemaVersion: state.schemaVersion, users: state.users, tasks: state.tasks, auditLog: state.auditLog, settings: state.settings },
+    null,
+    2,
+  )
+}
+
+// Set for the duration of applying a state that came FROM the shared file
+// (a pull, or a conflict resolution that adopts the remote side) — persist()
+// checks it to skip pushing that same content straight back, which would
+// otherwise be a pointless round-trip on every successful sync.
+let applyingRemoteState = false
+
 function persist(state: AppState) {
   localStorageAdapter.save({
     schemaVersion: state.schemaVersion,
@@ -111,6 +178,7 @@ function persist(state: AppState) {
     auditLog: state.auditLog,
     settings: state.settings,
   })
+  if (!applyingRemoteState) sharedFileSync.push(serializeState(state))
 }
 
 function deriveInitials(name: string): string {
@@ -167,6 +235,65 @@ function parseImportCandidate(json: string): { ok: true; parsed: Partial<AppStat
   return { ok: true, parsed: candidate }
 }
 
+/** Applies an already-migrated state as the new board — shared by importJSON and every shared-file sync path. */
+function applyImportedState(migrated: AppState) {
+  // An incoming roster may not include whoever you were signing as. Keeping
+  // the old id would attribute every later edit to a teammate this board
+  // (now) has never heard of.
+  const currentUserId = resolveCurrentUserId(useAppStore.getState().currentUserId, migrated.users)
+  saveCurrentUserId(currentUserId)
+  useAppStore.setState({ ...migrated, currentUserId })
+  persist(migrated)
+}
+
+/** Validates and applies JSON that came FROM the shared file (pull, reconnect, or "take theirs"). Returns whether it was applied. */
+function applyRemoteText(text: string): boolean {
+  const result = parseImportCandidate(text)
+  if (!result.ok) return false
+  applyingRemoteState = true
+  try {
+    applyImportedState(migrate(result.parsed))
+  } finally {
+    applyingRemoteState = false
+  }
+  return true
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : 'Something went wrong.'
+}
+
+function patchSharedFile(patch: Partial<SharedFileState>) {
+  useAppStore.setState((state) => ({ sharedFile: { ...state.sharedFile, ...patch } }))
+}
+
+// Handle + text staged by connectSharedFile() while the user confirms
+// replacing local data, and the remote text staged by a detected conflict —
+// kept out of the reactive store since neither needs to drive a render
+// beyond the small summaries already in SharedFileState.
+let pendingConnect: { handle: FileSystemFileHandle; text: string } | null = null
+let pendingConflictText: string | null = null
+
+async function attemptReconnect(handle: FileSystemFileHandle, requestPermissionIfNeeded: boolean) {
+  const granted = await verifyPermission(handle, 'readwrite', requestPermissionIfNeeded)
+  if (!granted) {
+    patchSharedFile({ status: 'needs-reconnect', name: handle.name })
+    return
+  }
+  try {
+    const text = await sharedFileSync.attach(handle)
+    applyRemoteText(text)
+    sharedFileSync.startPolling()
+    patchSharedFile({ status: 'connected', name: handle.name, error: null })
+  } catch (error) {
+    patchSharedFile({ status: 'error', error: describeError(error) })
+  }
+}
+
 function loadInitialState(): AppState {
   const stored = localStorageAdapter.load()
   if (stored.users.length > 0 || stored.tasks.length > 0) return stored
@@ -192,6 +319,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   cascadeSuggestion: null,
   cascadeAppliedNote: null,
   celebration: null,
+  sharedFile: INITIAL_SHARED_FILE_STATE,
 
   setCurrentUser: (userId) => {
     saveCurrentUserId(userId)
@@ -639,11 +767,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const next = { ...state, settings }
     set(next)
     persist(next)
-    return JSON.stringify(
-      { schemaVersion: next.schemaVersion, users: next.users, tasks: next.tasks, auditLog: next.auditLog, settings: next.settings },
-      null,
-      2,
-    )
+    return serializeState(next)
   },
 
   previewImport: (json) => {
@@ -655,15 +779,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   importJSON: (json) => {
     const result = parseImportCandidate(json)
     if (!result.ok) return result
-    const migrated = migrate(result.parsed)
-    // An import swaps the entire roster. Whoever you were signing as may not
-    // exist in the incoming data — keeping the old id would attribute every
-    // later edit to a teammate this board has never heard of.
-    const currentUserId = resolveCurrentUserId(get().currentUserId, migrated.users)
-    saveCurrentUserId(currentUserId)
-    const next = { ...get(), ...migrated, currentUserId }
-    set(next)
-    persist(migrated)
+    applyImportedState(migrate(result.parsed))
     return { ok: true }
   },
 
@@ -674,8 +790,174 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set(next)
     persist(next)
   },
+
+  connectSharedFile: async () => {
+    patchSharedFile({ status: 'connecting', error: null, connectPreview: null })
+    let handle: FileSystemFileHandle
+    try {
+      handle = await pickExistingFile()
+    } catch (error) {
+      patchSharedFile({
+        status: isAbortError(error) ? 'disconnected' : 'error',
+        error: isAbortError(error) ? null : describeError(error),
+      })
+      return
+    }
+    const granted = await verifyPermission(handle, 'readwrite', true)
+    if (!granted) {
+      patchSharedFile({ status: 'disconnected', error: 'Permission was not granted for that file.' })
+      return
+    }
+    let text: string
+    try {
+      text = await handle.getFile().then((f) => f.text())
+    } catch (error) {
+      patchSharedFile({ status: 'error', error: describeError(error) })
+      return
+    }
+    const result = parseImportCandidate(text)
+    if (!result.ok) {
+      patchSharedFile({ status: 'error', error: "That file doesn't look like a SideTrack export." })
+      return
+    }
+    // Staged, not applied yet — confirmConnectSharedFile() is what actually
+    // replaces local data, once the UI has shown the user what that means.
+    pendingConnect = { handle, text }
+    patchSharedFile({
+      status: 'connecting',
+      name: handle.name,
+      connectPreview: { userCount: result.parsed.users!.length, taskCount: result.parsed.tasks!.length },
+    })
+  },
+
+  confirmConnectSharedFile: async () => {
+    const pending = pendingConnect
+    pendingConnect = null
+    if (!pending) return
+    const applied = applyRemoteText(pending.text)
+    if (!applied) {
+      patchSharedFile({ status: 'error', error: "That file doesn't look like a SideTrack export.", connectPreview: null })
+      return
+    }
+    try {
+      await sharedFileSync.attach(pending.handle)
+    } catch (error) {
+      patchSharedFile({ status: 'error', error: describeError(error), connectPreview: null })
+      return
+    }
+    sharedFileSync.startPolling()
+    void storeHandle(pending.handle)
+    patchSharedFile({ status: 'connected', name: pending.handle.name, connectPreview: null, error: null })
+  },
+
+  cancelConnectSharedFile: () => {
+    pendingConnect = null
+    patchSharedFile({ status: 'disconnected', name: null, connectPreview: null, error: null })
+  },
+
+  createSharedFile: async () => {
+    patchSharedFile({ status: 'connecting', error: null })
+    let handle: FileSystemFileHandle
+    try {
+      handle = await pickNewFile()
+    } catch (error) {
+      patchSharedFile({
+        status: isAbortError(error) ? 'disconnected' : 'error',
+        error: isAbortError(error) ? null : describeError(error),
+      })
+      return
+    }
+    const granted = await verifyPermission(handle, 'readwrite', true)
+    if (!granted) {
+      patchSharedFile({ status: 'disconnected', error: 'Permission was not granted for that file.' })
+      return
+    }
+    try {
+      await sharedFileSync.attach(handle)
+      await sharedFileSync.forcePush(serializeState(get()))
+    } catch (error) {
+      sharedFileSync.detach()
+      patchSharedFile({ status: 'error', error: describeError(error) })
+      return
+    }
+    sharedFileSync.startPolling()
+    void storeHandle(handle)
+    patchSharedFile({ status: 'connected', name: handle.name, error: null })
+  },
+
+  disconnectSharedFile: async () => {
+    sharedFileSync.detach()
+    pendingConnect = null
+    pendingConflictText = null
+    await clearStoredHandle()
+    patchSharedFile({ status: 'disconnected', name: null, error: null, connectPreview: null })
+  },
+
+  reconnectSharedFile: async () => {
+    const handle = await getStoredHandle()
+    if (!handle) {
+      patchSharedFile({ status: 'disconnected' })
+      return
+    }
+    patchSharedFile({ status: 'connecting', error: null })
+    await attemptReconnect(handle, true)
+  },
+
+  syncSharedFileNow: async () => {
+    await sharedFileSync.pullNow()
+  },
+
+  dismissSharedFileError: () => {
+    patchSharedFile({ error: null, status: sharedFileSync.isConnected ? 'connected' : 'disconnected' })
+  },
+
+  keepMyVersionInConflict: async () => {
+    pendingConflictText = null
+    await sharedFileSync.forcePush(serializeState(get()))
+    patchSharedFile({ status: 'connected', error: null })
+  },
+
+  takeTheirVersionInConflict: () => {
+    const text = pendingConflictText
+    pendingConflictText = null
+    if (!text) return
+    const applied = applyRemoteText(text)
+    patchSharedFile({
+      status: applied ? 'connected' : 'error',
+      error: applied ? null : "The shared file no longer looks like a SideTrack export.",
+    })
+  },
+
+  applySharedFileText: (text) => {
+    applyRemoteText(text)
+  },
 }))
 
 localStorageAdapter.setSaveFailureListener(() => {
   useAppStore.setState({ saveError: true })
 })
+
+const sharedFileSync = new SharedFileSync({
+  onRemoteChange: (text) => {
+    const applied = applyRemoteText(text)
+    if (!applied) patchSharedFile({ status: 'error', error: "The shared file no longer looks like a SideTrack export." })
+  },
+  onConflict: (remoteText) => {
+    pendingConflictText = remoteText
+    patchSharedFile({ status: 'conflict', error: null })
+  },
+  onError: (error) => {
+    patchSharedFile({ status: 'error', error: describeError(error) })
+  },
+})
+
+// Silent reconnect on boot if a handle was remembered from a previous
+// session. "Silent" means it never prompts for permission — that needs an
+// actual click — so if the browser didn't persist a granted permission for
+// it, this lands on 'needs-reconnect' instead of 'connected', and the UI
+// offers a one-click way to re-grant it.
+if (isFileSystemAccessSupported()) {
+  void getStoredHandle().then((handle) => {
+    if (handle) void attemptReconnect(handle, false)
+  })
+}

@@ -13,6 +13,7 @@ import { GanttChart } from './components/GanttChart'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DigestModal } from './components/DigestModal'
 import { Modal } from './components/Modal'
+import { SharedFileControl } from './components/SharedFileControl'
 import { exportToPptx } from './lib/pptxExport'
 
 interface PendingImport {
@@ -35,6 +36,10 @@ export default function App() {
   const exportJSON = useAppStore((s) => s.exportJSON)
   const previewImport = useAppStore((s) => s.previewImport)
   const importJSON = useAppStore((s) => s.importJSON)
+  const sharedFile = useAppStore((s) => s.sharedFile)
+  const keepMyVersionInConflict = useAppStore((s) => s.keepMyVersionInConflict)
+  const takeTheirVersionInConflict = useAppStore((s) => s.takeTheirVersionInConflict)
+  const dismissSharedFileError = useAppStore((s) => s.dismissSharedFileError)
 
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
@@ -153,6 +158,7 @@ export default function App() {
               e.target.value = ''
             }}
           />
+          <SharedFileControl />
           <ThemeToggle />
         </div>
       </header>
@@ -161,6 +167,33 @@ export default function App() {
         <div className="st-rise mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
           Couldn't save to this browser's storage. Export a backup so you don't lose changes.
           <button className="ml-3 underline" onClick={dismissSaveError}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {sharedFile.status === 'conflict' && (
+        <div className="st-rise mb-6 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-800 dark:text-amber-300">
+          A teammate saved a change to the team file while you had one pending — pick which version to keep.
+          <button
+            className="ml-3 rounded-md border border-black/15 px-2 py-1 text-xs hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
+            onClick={takeTheirVersionInConflict}
+          >
+            Load their version
+          </button>
+          <button
+            className="ml-2 rounded-md border border-black/15 px-2 py-1 text-xs hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/10"
+            onClick={() => void keepMyVersionInConflict()}
+          >
+            Keep mine
+          </button>
+        </div>
+      )}
+
+      {sharedFile.status === 'error' && sharedFile.error && (
+        <div className="st-rise mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
+          Team file sync problem: {sharedFile.error}
+          <button className="ml-3 underline" onClick={dismissSharedFileError}>
             Dismiss
           </button>
         </div>
