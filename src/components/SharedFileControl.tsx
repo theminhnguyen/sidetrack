@@ -1,8 +1,42 @@
+import { useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { downloadJSON } from '../lib/file'
 import { Modal } from './Modal'
 
 const BUTTON = 'rounded-md border border-black/15 px-2.5 py-1.5 text-xs hover:bg-black/5 disabled:opacity-40 dark:border-white/15 dark:hover:bg-white/10'
+const HELP_LINK = 'text-xs text-black/50 underline decoration-black/30 hover:text-black dark:text-white/50 dark:decoration-white/30 dark:hover:text-white'
+
+function TeamFileHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal title="How to connect to the team file" onClose={onClose}>
+      <ol className="list-decimal space-y-2 pl-5 text-sm text-black/70 dark:text-white/70">
+        <li>
+          Make sure OneDrive is installed and signed in with your E.ON account (Mac App Store → "OneDrive" → sign in
+          with your E.ON email). Skip this if it's already set up.
+        </li>
+        <li>
+          In Microsoft Teams, open <strong>Automation Development</strong> →{' '}
+          <strong>Internal Communication</strong> channel → <strong>Files</strong> tab → the{' '}
+          <strong>internals</strong> folder.
+        </li>
+        <li>Click "Sync" (or "Add shortcut to OneDrive") so that folder shows up in Finder.</li>
+        <li>
+          Come back here and click <strong>Connect team file</strong>.
+        </li>
+        <li>
+          In the file picker, jump to OneDrive (on a Mac: press <strong>Cmd+Shift+G</strong>, then type "OneDrive"),
+          then open <strong>Automation Development – Internal Communication</strong> → <strong>internals</strong>.
+        </li>
+        <li>
+          Select <strong>sidetrack-team.json</strong> and confirm.
+        </li>
+      </ol>
+      <p className="mt-3 text-xs text-black/50 dark:text-white/50">
+        This is a one-time setup per browser — SideTrack remembers it after that.
+      </p>
+    </Modal>
+  )
+}
 
 export function SharedFileControl() {
   const sharedFile = useAppStore((s) => s.sharedFile)
@@ -14,6 +48,7 @@ export function SharedFileControl() {
   const reconnectSharedFile = useAppStore((s) => s.reconnectSharedFile)
   const syncSharedFileNow = useAppStore((s) => s.syncSharedFileNow)
   const exportJSON = useAppStore((s) => s.exportJSON)
+  const [showHelp, setShowHelp] = useState(false)
 
   // Chrome/Edge only — File System Access API has no Firefox/Safari support
   // and never reached full standardization, so there's nothing to offer there.
@@ -66,13 +101,19 @@ export function SharedFileControl() {
       <button onClick={() => void connectSharedFile()} disabled={connecting} className={BUTTON}>
         {connecting && !sharedFile.connectPreview ? 'Connecting…' : 'Connect team file'}
       </button>
-      <button
-        onClick={() => void createSharedFile()}
-        disabled={connecting}
-        className="text-xs text-black/50 underline decoration-black/30 hover:text-black disabled:opacity-40 dark:text-white/50 dark:decoration-white/30 dark:hover:text-white"
-      >
+      <button onClick={() => void createSharedFile()} disabled={connecting} className={`${HELP_LINK} disabled:opacity-40`}>
         start one
       </button>
+      <button
+        onClick={() => setShowHelp(true)}
+        aria-label="How to connect to the team file"
+        title="How to connect to the team file"
+        className="flex h-4 w-4 items-center justify-center rounded-full border border-black/20 text-[10px] text-black/50 hover:border-black/40 hover:text-black dark:border-white/20 dark:text-white/50 dark:hover:border-white/40 dark:hover:text-white"
+      >
+        ?
+      </button>
+
+      {showHelp && <TeamFileHelp onClose={() => setShowHelp(false)} />}
 
       {sharedFile.connectPreview && (
         <Modal title="Connect to this team file?" onClose={cancelConnectSharedFile}>
