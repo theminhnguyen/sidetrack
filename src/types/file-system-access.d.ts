@@ -51,4 +51,11 @@ declare global {
     showOpenFilePicker(options?: OpenFilePickerOptions): Promise<FileSystemFileHandle[]>
     showSaveFilePicker(options?: SaveFilePickerOptions): Promise<FileSystemFileHandle>
   }
+
+  // Lets a file dropped onto the page yield a real (writable) handle, the
+  // same kind the picker returns — which is how dragging the team file in
+  // from Explorer/Finder can replace navigating the OS file dialog.
+  interface DataTransferItem {
+    getAsFileSystemHandle(): Promise<FileSystemHandle | null>
+  }
 }

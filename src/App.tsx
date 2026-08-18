@@ -14,6 +14,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { DigestModal } from './components/DigestModal'
 import { Modal } from './components/Modal'
 import { SharedFileControl } from './components/SharedFileControl'
+import { SharedFileDropZone } from './components/SharedFileDropZone'
 import { exportToPptx } from './lib/pptxExport'
 
 interface PendingImport {
@@ -343,6 +344,7 @@ export default function App() {
         </Modal>
       )}
 
+      <SharedFileDropZone />
       <CascadeToast />
       <Confetti />
     </div>

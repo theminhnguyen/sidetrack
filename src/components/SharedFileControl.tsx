@@ -21,25 +21,20 @@ function TeamFileHelp({ onClose }: { onClose: () => void }) {
         </li>
         <li>Click "Sync" (or "Add shortcut to OneDrive") so that folder shows up in Finder.</li>
         <li>
-          Come back here and click <strong>Connect team file</strong>.
-        </li>
-        <li>
-          In the file picker, jump to OneDrive (on a Mac: press <strong>Cmd+Shift+G</strong>, then type "OneDrive"),
-          then open <strong>Automation Development – Internal Communication</strong> → <strong>internals</strong>.
-        </li>
-        <li>
-          Select <strong>sidetrack-team.json</strong> and confirm.
+          Open that folder in Finder (Mac) or Explorer (Windows) and{' '}
+          <strong>drag sidetrack-team.json onto this page</strong> — that's it, no file dialog to navigate.
         </li>
       </ol>
 
       <div className="mt-4 rounded-md border border-black/10 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/[0.03]">
         <p className="text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">
-          Can't find the folder in step 5?
+          Prefer the file dialog?
         </p>
         <p className="mt-1.5 text-xs text-black/70 dark:text-white/70">
-          Pin it once, for good: in Finder, drag the <strong>internals</strong> folder into the sidebar under
-          Favorites. macOS shares that sidebar with every app's file dialog, including this one — so it'll show up
-          as a one-click shortcut here from then on too.
+          Click <strong>Connect team file</strong> instead, then navigate to{' '}
+          <strong>Automation Development – Internal Communication</strong> → <strong>internals</strong> and pick{' '}
+          <strong>sidetrack-team.json</strong>. On a Mac you can drag the <strong>internals</strong> folder into the
+          Finder sidebar once — it then shows up as a one-click shortcut in every file dialog, including this one.
         </p>
       </div>
 

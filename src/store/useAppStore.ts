@@ -132,6 +132,8 @@ interface AppStore extends AppState {
   sharedFile: SharedFileState
   /** Opens the "pick an existing file" dialog and, if it looks like a SideTrack file, stages it behind connectPreview for confirmation. */
   connectSharedFile: () => Promise<void>
+  /** Same staging flow, but for a handle obtained by dropping a file onto the page (DataTransferItem.getAsFileSystemHandle). */
+  connectSharedFileFromHandle: (handle: FileSystemFileHandle) => Promise<void>
   confirmConnectSharedFile: () => Promise<void>
   cancelConnectSharedFile: () => void
   /** For the first person setting one up — seeds the picked file with the current board. */
@@ -277,6 +279,41 @@ function patchSharedFile(patch: Partial<SharedFileState>) {
 // beyond the small summaries already in SharedFileState.
 let pendingConnect: { handle: FileSystemFileHandle; text: string } | null = null
 let pendingConflictText: string | null = null
+
+/**
+ * Permission-checks a handle, reads it, and stages it behind connectPreview
+ * for the user to confirm — shared by the file picker and the drag-and-drop
+ * path so the two can never disagree about what "connecting" means (in
+ * particular: neither ever replaces local data without confirmation).
+ * Must run from a user gesture, since it may request permission.
+ */
+async function stageConnect(handle: FileSystemFileHandle) {
+  const granted = await verifyPermission(handle, 'readwrite', true)
+  if (!granted) {
+    patchSharedFile({ status: 'disconnected', error: 'Permission was not granted for that file.' })
+    return
+  }
+  let text: string
+  try {
+    text = await handle.getFile().then((f) => f.text())
+  } catch (error) {
+    patchSharedFile({ status: 'error', error: describeError(error) })
+    return
+  }
+  const result = parseImportCandidate(text)
+  if (!result.ok) {
+    patchSharedFile({ status: 'error', error: "That file doesn't look like a SideTrack export." })
+    return
+  }
+  // Staged, not applied yet — confirmConnectSharedFile() is what actually
+  // replaces local data, once the UI has shown the user what that means.
+  pendingConnect = { handle, text }
+  patchSharedFile({
+    status: 'connecting',
+    name: handle.name,
+    connectPreview: { userCount: result.parsed.users!.length, taskCount: result.parsed.tasks!.length },
+  })
+}
 
 async function attemptReconnect(handle: FileSystemFileHandle, requestPermissionIfNeeded: boolean) {
   const granted = await verifyPermission(handle, 'readwrite', requestPermissionIfNeeded)
@@ -803,31 +840,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       })
       return
     }
-    const granted = await verifyPermission(handle, 'readwrite', true)
-    if (!granted) {
-      patchSharedFile({ status: 'disconnected', error: 'Permission was not granted for that file.' })
-      return
-    }
-    let text: string
-    try {
-      text = await handle.getFile().then((f) => f.text())
-    } catch (error) {
-      patchSharedFile({ status: 'error', error: describeError(error) })
-      return
-    }
-    const result = parseImportCandidate(text)
-    if (!result.ok) {
-      patchSharedFile({ status: 'error', error: "That file doesn't look like a SideTrack export." })
-      return
-    }
-    // Staged, not applied yet — confirmConnectSharedFile() is what actually
-    // replaces local data, once the UI has shown the user what that means.
-    pendingConnect = { handle, text }
-    patchSharedFile({
-      status: 'connecting',
-      name: handle.name,
-      connectPreview: { userCount: result.parsed.users!.length, taskCount: result.parsed.tasks!.length },
-    })
+    await stageConnect(handle)
+  },
+
+  connectSharedFileFromHandle: async (handle) => {
+    patchSharedFile({ status: 'connecting', error: null, connectPreview: null })
+    await stageConnect(handle)
   },
 
   confirmConnectSharedFile: async () => {
