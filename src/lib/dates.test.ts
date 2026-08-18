@@ -1,45 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { daysSince, isCapacityStale, shouldNudgeExport } from './dates'
+import { daysSince, isCapacityStale } from './dates'
 import { localNoon, localNoonISO } from '../test/localTime'
 
 /**
- * All timestamps here sit at midday UTC on purpose. Both thresholds are
- * measured in *local* calendar days, so a midnight-UTC fixture silently
- * becomes the previous day west of Greenwich and shifts every count by one —
- * which is exactly how the "one day short" cases below used to pass in CEST
- * and fail in US timezones.
+ * All timestamps here sit at midday UTC on purpose. The staleness threshold
+ * is measured in *local* calendar days, so a midnight-UTC fixture silently
+ * becomes the previous day west of Greenwich and shifts the count by one —
+ * which is exactly how an "one day short" case would pass in CEST and fail
+ * in US timezones.
  */
-describe('shouldNudgeExport (PLAN-V2 P1)', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(localNoon(2026, 8, 15))
-  })
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('never nudges an empty board, no matter how stale the export', () => {
-    expect(shouldNudgeExport(null, false)).toBe(false)
-    expect(shouldNudgeExport(localNoonISO(2020, 1, 1), false)).toBe(false)
-  })
-
-  it('nudges when there are tasks and nothing has ever been exported', () => {
-    expect(shouldNudgeExport(null, true)).toBe(true)
-  })
-
-  it('does not nudge for a recent export', () => {
-    expect(shouldNudgeExport(localNoonISO(2026, 8, 10), true)).toBe(false) // 5 days ago
-  })
-
-  it('nudges once the last export is 14 or more days old', () => {
-    expect(shouldNudgeExport(localNoonISO(2026, 8, 1), true)).toBe(true) // 14 days ago
-  })
-
-  it('does not nudge one day short of the threshold', () => {
-    expect(shouldNudgeExport(localNoonISO(2026, 8, 2), true)).toBe(false) // 13 days ago
-  })
-})
-
 describe('capacity staleness', () => {
   beforeEach(() => {
     vi.useFakeTimers()

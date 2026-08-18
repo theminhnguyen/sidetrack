@@ -1,7 +1,5 @@
 import { useRef, useState } from 'react'
 import { useAppStore } from './store/useAppStore'
-import { downloadJSON, readFileAsText } from './lib/file'
-import { shouldNudgeExport } from './lib/dates'
 import { TeamBar } from './components/TeamBar'
 import { TaskBoard } from './components/TaskBoard'
 import { TaskDetailDrawer } from './components/TaskDetailDrawer'
@@ -12,16 +10,9 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { GanttChart } from './components/GanttChart'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { DigestModal } from './components/DigestModal'
-import { Modal } from './components/Modal'
 import { SharedFileControl } from './components/SharedFileControl'
 import { SharedFileDropZone } from './components/SharedFileDropZone'
 import { exportToPptx } from './lib/pptxExport'
-
-interface PendingImport {
-  text: string
-  userCount: number
-  taskCount: number
-}
 
 type ViewTab = 'board' | 'gantt'
 
@@ -29,66 +20,35 @@ export default function App() {
   const allUsers = useAppStore((s) => s.users)
   const users = allUsers.filter((u) => u.active)
   const taskCount = useAppStore((s) => s.tasks.length)
-  const lastExportAt = useAppStore((s) => s.settings.lastExportAt)
   const currentUserId = useAppStore((s) => s.currentUserId)
   const setCurrentUser = useAppStore((s) => s.setCurrentUser)
   const saveError = useAppStore((s) => s.saveError)
   const dismissSaveError = useAppStore((s) => s.dismissSaveError)
-  const exportJSON = useAppStore((s) => s.exportJSON)
-  const previewImport = useAppStore((s) => s.previewImport)
-  const importJSON = useAppStore((s) => s.importJSON)
   const sharedFile = useAppStore((s) => s.sharedFile)
   const keepMyVersionInConflict = useAppStore((s) => s.keepMyVersionInConflict)
   const takeTheirVersionInConflict = useAppStore((s) => s.takeTheirVersionInConflict)
   const dismissSharedFileError = useAppStore((s) => s.dismissSharedFileError)
 
-  const [importMessage, setImportMessage] = useState<string | null>(null)
-  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   // Not persisted: a nudge that's easy to permanently silence with one click
-  // defeats its own purpose — it's meant to keep surfacing until you actually export.
-  const [exportNudgeDismissed, setExportNudgeDismissed] = useState(false)
-  const showExportNudge = shouldNudgeExport(lastExportAt, taskCount > 0) && !exportNudgeDismissed
+  // defeats its own purpose — it's meant to keep surfacing until you actually connect.
+  const [connectNudgeDismissed, setConnectNudgeDismissed] = useState(false)
+  // Once connected, the team file holds the data and this warning would be
+  // wrong. Any not-yet-connected state (including 'unsupported', where this
+  // browser can't connect at all) still deserves the heads-up.
+  const isSharedFileConnected = sharedFile.status === 'connected' || sharedFile.status === 'conflict'
+  const showConnectNudge = !isSharedFileConnected && taskCount > 0 && !connectNudgeDismissed
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false)
   const [viewTab, setViewTab] = useState<ViewTab>('board')
   const [isDigestOpen, setIsDigestOpen] = useState(false)
   const [isExportingPptx, setIsExportingPptx] = useState(false)
   const [pptxError, setPptxError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const ganttContainerRef = useRef<HTMLDivElement>(null)
 
   // Monotonic false -> true: once the Gantt has been opened it stays mounted.
   const hasOpenedGanttRef = useRef(false)
   if (viewTab === 'gantt') hasOpenedGanttRef.current = true
   const hasOpenedGantt = hasOpenedGanttRef.current
-
-  function handleExport() {
-    const json = exportJSON()
-    const date = new Date().toISOString().slice(0, 10)
-    downloadJSON(`sidetrack-backup-${date}.json`, json)
-  }
-
-  async function handleImportFile(file: File) {
-    const text = await readFileAsText(file)
-    const preview = previewImport(text)
-    if (!preview.ok) {
-      setImportMessage(`Import failed: ${preview.error}`)
-      return
-    }
-    // Importing replaces everything at once with no undo, and this is the
-    // only copy of the data — so it's confirmed with actual numbers, not a
-    // generic warning, and there's a real file to fall back to if it goes wrong.
-    setPendingImport({ text, userCount: preview.userCount, taskCount: preview.taskCount })
-  }
-
-  function confirmImport() {
-    if (!pendingImport) return
-    const date = new Date().toISOString().slice(0, 10)
-    downloadJSON(`sidetrack-before-import-${date}.json`, exportJSON())
-    const result = importJSON(pendingImport.text)
-    setImportMessage(result.ok ? 'Import successful.' : `Import failed: ${result.error}`)
-    setPendingImport(null)
-  }
 
   async function handleExportPptx() {
     setPptxError(null)
@@ -136,29 +96,6 @@ export default function App() {
               </option>
             ))}
           </select>
-          <button
-            onClick={handleExport}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
-          >
-            Export JSON
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
-          >
-            Import JSON
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) void handleImportFile(file)
-              e.target.value = ''
-            }}
-          />
           <SharedFileControl />
           <ThemeToggle />
         </div>
@@ -166,7 +103,9 @@ export default function App() {
 
       {saveError && (
         <div className="st-rise mb-6 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-700 dark:text-rose-300">
-          Couldn't save to this browser's storage. Export a backup so you don't lose changes.
+          {isSharedFileConnected
+            ? "Couldn't save to this browser's local cache — but changes are still syncing to the team file, so nothing is lost."
+            : "Couldn't save to this browser's storage, and there's no team file connected — changes made now may not survive a reload."}
           <button className="ml-3 underline" onClick={dismissSaveError}>
             Dismiss
           </button>
@@ -209,29 +148,15 @@ export default function App() {
         </div>
       )}
 
-      {importMessage && (
-        <div className="st-rise mb-6 rounded-md border border-black/15 bg-black/[0.03] px-4 py-2 text-sm dark:border-white/15 dark:bg-white/5">
-          {importMessage}
-          <button className="ml-3 underline" onClick={() => setImportMessage(null)}>
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {showExportNudge && (
+      {showConnectNudge && (
         <div className="st-rise mb-6 flex flex-wrap items-center gap-3 rounded-md border border-black/15 bg-black/[0.03] px-4 py-2 text-sm dark:border-white/15 dark:bg-white/5">
           <span>
-            This data lives only in this browser — nowhere else. Export a backup so a cleared cache or a new
-            machine can't take it with it.
+            {sharedFile.status === 'unsupported'
+              ? "This data lives only in this browser — nowhere else. This browser can't connect to a team file (needs Chrome or Edge), so there's no backup beyond this device."
+              : "This data lives only in this browser — nowhere else. Connect the team file so it's backed up and shared, not stuck on one machine."}
           </span>
           <button
-            onClick={handleExport}
-            className="shrink-0 rounded-md border border-black/20 bg-black/5 px-2.5 py-1 text-xs hover:bg-black/10 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/20"
-          >
-            Export JSON
-          </button>
-          <button
-            onClick={() => setExportNudgeDismissed(true)}
+            onClick={() => setConnectNudgeDismissed(true)}
             className="ml-auto shrink-0 text-xs text-black/50 underline hover:text-black dark:text-white/50 dark:hover:text-white"
           >
             Dismiss
@@ -312,37 +237,6 @@ export default function App() {
       )}
 
       {isDigestOpen && <DigestModal onClose={() => setIsDigestOpen(false)} />}
-
-      {pendingImport && (
-        <Modal title="Replace all data?" onClose={() => setPendingImport(null)}>
-          <p className="text-sm text-black/70 dark:text-white/70">
-            This browser currently has <strong>{taskCount}</strong> task{taskCount === 1 ? '' : 's'} and{' '}
-            <strong>{allUsers.length}</strong> teammate{allUsers.length === 1 ? '' : 's'}. The file you picked has{' '}
-            <strong>{pendingImport.taskCount}</strong> task{pendingImport.taskCount === 1 ? '' : 's'} and{' '}
-            <strong>{pendingImport.userCount}</strong> teammate{pendingImport.userCount === 1 ? '' : 's'}.
-          </p>
-          <p className="mt-2 text-sm text-black/70 dark:text-white/70">
-            Importing replaces everything currently stored here. This can't be undone from inside the app.
-          </p>
-          <p className="mt-2 text-xs text-black/50 dark:text-white/50">
-            A backup of what's here now will download automatically before the replace happens.
-          </p>
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={confirmImport}
-              className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-500/20 dark:text-rose-300"
-            >
-              Back up &amp; replace
-            </button>
-            <button
-              onClick={() => setPendingImport(null)}
-              className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
-            >
-              Cancel
-            </button>
-          </div>
-        </Modal>
-      )}
 
       <SharedFileDropZone />
       <CascadeToast />
