@@ -26,6 +26,10 @@ describe('SharedFileControl — connection help', () => {
     expect(screen.getByText('Internal Communication')).toBeDefined()
     expect(screen.getByText(/Needs/)).toBeDefined()
     expect(screen.getByText('Chrome or Edge')).toBeDefined()
+    expect(screen.getByText('Add shortcut to OneDrive')).toBeDefined()
+    // Regression: colleagues got stuck because nothing told them how to tell
+    // whether the OneDrive shortcut step actually did anything.
+    expect(screen.getByText(/Check it actually worked/)).toBeDefined()
     // Drag-and-drop is the primary route now — the file dialog is the fallback.
     expect(screen.getByText(/drag sidetrack-team\.json onto this page/i)).toBeDefined()
   })
