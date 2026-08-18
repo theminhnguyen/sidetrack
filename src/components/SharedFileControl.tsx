@@ -31,6 +31,25 @@ function TeamFileHelp({ onClose }: { onClose: () => void }) {
           Select <strong>sidetrack-team.json</strong> and confirm.
         </li>
       </ol>
+
+      <div className="mt-4 rounded-md border border-black/10 bg-black/[0.03] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+        <p className="text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">
+          Can't find the folder in step 5?
+        </p>
+        <ul className="mt-1.5 list-disc space-y-1.5 pl-4 text-xs text-black/70 dark:text-white/70">
+          <li>
+            <strong>Pin it once, for good:</strong> in Finder, drag the <strong>internals</strong> folder into the
+            sidebar under Favorites. macOS shares that sidebar with every app's file dialog, including this one — so
+            it'll show up as a one-click shortcut here from then on too.
+          </li>
+          <li>
+            <strong>Or just search for it:</strong> press <strong>Cmd+Space</strong>, type{' '}
+            <strong>sidetrack-team.json</strong>, and once Spotlight finds it, drag it straight from the results
+            onto the file picker window to select it — no folder-clicking needed.
+          </li>
+        </ul>
+      </div>
+
       <p className="mt-3 text-xs text-black/50 dark:text-white/50">
         This is a one-time setup per browser — SideTrack remembers it after that.
       </p>

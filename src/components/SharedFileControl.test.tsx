@@ -21,7 +21,8 @@ describe('SharedFileControl — connection help', () => {
     await user.click(screen.getByRole('button', { name: 'How to connect to the team file' }))
 
     expect(screen.getByRole('dialog', { name: 'How to connect to the team file' })).toBeDefined()
-    expect(screen.getByText('sidetrack-team.json')).toBeDefined()
+    // Appears twice — once in the main steps, once in the "can't find it?" tip.
+    expect(screen.getAllByText('sidetrack-team.json').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('Automation Development')).toBeDefined()
     expect(screen.getByText('Internal Communication')).toBeDefined()
   })
