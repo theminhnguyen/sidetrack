@@ -36,21 +36,18 @@ function TeamFileHelp({ onClose }: { onClose: () => void }) {
         <p className="text-xs font-medium uppercase tracking-wide text-black/50 dark:text-white/50">
           Can't find the folder in step 5?
         </p>
-        <ul className="mt-1.5 list-disc space-y-1.5 pl-4 text-xs text-black/70 dark:text-white/70">
-          <li>
-            <strong>Pin it once, for good:</strong> in Finder, drag the <strong>internals</strong> folder into the
-            sidebar under Favorites. macOS shares that sidebar with every app's file dialog, including this one — so
-            it'll show up as a one-click shortcut here from then on too.
-          </li>
-          <li>
-            <strong>Or just search for it:</strong> press <strong>Cmd+Space</strong>, type{' '}
-            <strong>sidetrack-team.json</strong>, and once Spotlight finds it, drag it straight from the results
-            onto the file picker window to select it — no folder-clicking needed.
-          </li>
-        </ul>
+        <p className="mt-1.5 text-xs text-black/70 dark:text-white/70">
+          Pin it once, for good: in Finder, drag the <strong>internals</strong> folder into the sidebar under
+          Favorites. macOS shares that sidebar with every app's file dialog, including this one — so it'll show up
+          as a one-click shortcut here from then on too.
+        </p>
       </div>
 
       <p className="mt-3 text-xs text-black/50 dark:text-white/50">
+        Needs <strong>Chrome or Edge</strong> — Brave blocks this feature by default, even though it's also
+        Chromium-based.
+      </p>
+      <p className="mt-1 text-xs text-black/50 dark:text-white/50">
         This is a one-time setup per browser — SideTrack remembers it after that.
       </p>
     </Modal>
@@ -69,9 +66,18 @@ export function SharedFileControl() {
   const exportJSON = useAppStore((s) => s.exportJSON)
   const [showHelp, setShowHelp] = useState(false)
 
-  // Chrome/Edge only — File System Access API has no Firefox/Safari support
-  // and never reached full standardization, so there's nothing to offer there.
-  if (sharedFile.status === 'unsupported') return null
+  // Chrome/Edge only — Firefox and Safari never implemented this API, and
+  // Brave (despite being Chromium-based) disables it by default as a privacy
+  // choice. A silent gap here previously left Brave users with no clue the
+  // button was ever supposed to be there — a visible, dismissible-by-context
+  // hint beats another "why doesn't this work" moment.
+  if (sharedFile.status === 'unsupported') {
+    return (
+      <span className="text-xs text-black/40 dark:text-white/40" title="Needs Chrome or Edge (Brave blocks this by default)">
+        Team file sync needs Chrome or Edge
+      </span>
+    )
+  }
 
   function handleConfirmConnect() {
     // Same safety net as a plain JSON import: whatever was in this browser

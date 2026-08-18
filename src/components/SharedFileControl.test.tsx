@@ -21,10 +21,11 @@ describe('SharedFileControl — connection help', () => {
     await user.click(screen.getByRole('button', { name: 'How to connect to the team file' }))
 
     expect(screen.getByRole('dialog', { name: 'How to connect to the team file' })).toBeDefined()
-    // Appears twice — once in the main steps, once in the "can't find it?" tip.
-    expect(screen.getAllByText('sidetrack-team.json').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('sidetrack-team.json')).toBeDefined()
     expect(screen.getByText('Automation Development')).toBeDefined()
     expect(screen.getByText('Internal Communication')).toBeDefined()
+    expect(screen.getByText(/Needs/)).toBeDefined()
+    expect(screen.getByText('Chrome or Edge')).toBeDefined()
   })
 
   it('closes on request', async () => {
@@ -38,11 +39,16 @@ describe('SharedFileControl — connection help', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('does not render at all when the browser has no File System Access API', () => {
+  it('shows a visible hint (not silence) when the browser has no File System Access API', () => {
+    // Regression: this used to render nothing at all — a Brave user reported
+    // being unable to find the button with no clue it was ever going to be
+    // there, since Brave disables this API by default despite being Chromium-based.
     useAppStore.setState({ sharedFile: { status: 'unsupported', name: null, error: null, connectPreview: null } })
-    const { container } = render(<SharedFileControl />)
+    render(<SharedFileControl />)
 
-    expect(container.innerHTML).toBe('')
+    expect(screen.getByText('Team file sync needs Chrome or Edge')).toBeDefined()
+    // No connect/create controls should appear — there's nothing to click here.
+    expect(screen.queryByRole('button', { name: 'Connect team file' })).toBeNull()
   })
 })
 
